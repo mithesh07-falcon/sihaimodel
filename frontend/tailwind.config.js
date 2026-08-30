@@ -1,62 +1,34 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        slate: {
-          950: '#030712',
-          900: '#0f172a',
-          800: '#1e293b',
-          700: '#334155',
+        cream: '#F5F2EC',
+        'cream-dark': '#EDE9DF',
+        orange: {
+          DEFAULT: '#FF6B35',
+          50:  '#FFF4EF',
+          100: '#FFE8DC',
+          400: '#FF8C5A',
+          500: '#FF6B35',
+          600: '#E55A25',
+          700: '#C44A1A',
         },
-        cyan: {
-          400: '#22d3ee',
-          500: '#06b6d4',
-          600: '#0891b2',
-        },
-        emerald: {
-          400: '#34d399',
-          500: '#10b981',
-        },
-        amber: {
-          400: '#fbbf24',
-          500: '#f59e0b',
-        },
-        red: {
-          500: '#ef4444',
-          600: '#dc2626',
-        }
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
-      animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'piston-1': 'piston 0.6s ease-in-out infinite alternate',
-        'piston-2': 'piston-delayed 0.6s ease-in-out infinite alternate',
-        'flow-fast': 'flow 1s linear infinite',
-        'flow-medium': 'flow 2s linear infinite',
+      boxShadow: {
+        card: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
+        'card-md': '0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07)',
+        'card-lg': '0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05)',
       },
-      keyframes: {
-        piston: {
-          '0%': { transform: 'translateY(0px)' },
-          '100%': { transform: 'translateY(15px)' }
-        },
-        'piston-delayed': {
-          '0%': { transform: 'translateY(15px)' },
-          '100%': { transform: 'translateY(0px)' }
-        },
-        flow: {
-          '0%': { strokeDashoffset: '20' },
-          '100%': { strokeDashoffset: '0' }
-        }
-      }
+      borderRadius: {
+        '2xl': '1rem',
+        '3xl': '1.5rem',
+      },
     },
   },
   plugins: [],
-}
+};

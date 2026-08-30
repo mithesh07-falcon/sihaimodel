@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from .schemas import EngineParameters, DiagnosisResponse
-from .reliability import calculate_reliability
+from .reliability import calculate_reliability, calculate_maintenance_score, calculate_rul, calculate_failure_probability
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -165,12 +165,19 @@ def diagnose_engine(params: EngineParameters):
             
         recommended_action = "Set fuel mixture channel to RICH or AUTO. Maintain throttle. If misfires persist, reduce power and vector to secondary landing field."
 
+    m_score = calculate_maintenance_score(input_dict)
+    rul = calculate_rul(reliability, confidence)
+    fail_prob = calculate_failure_probability(reliability, confidence)
+
     return DiagnosisResponse(
         status=status,
         fault_component=fault_component,
         fault_type=prediction,
         confidence=round(confidence, 2),
         mission_reliability_score=reliability,
+        rul_estimate_hours=rul,
+        failure_probability_30d=fail_prob,
+        maintenance_score=m_score,
         reasoning=reasoning,
         recommended_action=recommended_action
     )

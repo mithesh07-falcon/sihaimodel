@@ -21,5 +21,8 @@ class DiagnosisResponse(BaseModel):
     fault_type: str = Field(..., description="Specific fault class classification")
     confidence: float = Field(..., description="Model classification probability score")
     mission_reliability_score: int = Field(..., description="Remaining mission reliability index (0-100)")
+    rul_estimate_hours: int = Field(..., description="Remaining useful life in flight hours")
+    failure_probability_30d: float = Field(..., description="Failure probability over next 30 days (%)")
+    maintenance_score: int = Field(..., description="Maintenance health score 0-100")
     reasoning: List[str] = Field(..., description="Rule-based logical explainability steps")
     recommended_action: str = Field(..., description="Operational action suggested to pilot/operator")
