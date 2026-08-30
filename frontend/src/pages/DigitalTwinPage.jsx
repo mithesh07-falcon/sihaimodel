@@ -22,9 +22,9 @@ const DeviationBadge = ({ actual, expected }) => {
   return (
     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
       style={{
-        background: crit ? '#EF444420' : warn ? '#F59E0B20' : '#22C55E20',
+        background: crit ? '#FEF2F2' : warn ? '#FFFBEB' : '#F0FDF4',
         color: crit ? '#EF4444' : warn ? '#F59E0B' : '#22C55E',
-        border: `1px solid ${crit ? '#EF444440' : warn ? '#F59E0B40' : '#22C55E40'}`,
+        border: `1px solid ${crit ? '#FCA5A5' : warn ? '#FCD34D' : '#86EFAC'}`,
       }}>
       {diff >= 0 ? '+' : ''}{diff.toFixed(1)} {pct > 8 ? '⚠' : '✓'}
     </span>
@@ -48,20 +48,20 @@ const DigitalTwinPage = () => {
   const stColor = st === 'Healthy' ? '#22C55E' : st === 'Warning' ? '#F59E0B' : '#EF4444';
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: '#050B14', color: '#E2E8F0' }}>
+    <div className="h-screen flex flex-col bg-white" style={{ color: '#1F2937' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 shrink-0" style={{ borderBottom: '1px solid #1E2D3D', background: '#080E18' }}>
+      <div className="flex items-center justify-between px-6 py-3 shrink-0 bg-white border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-black tracking-widest">DIGITAL TWIN</span>
-          <span className="text-[9px] px-2 py-0.5 rounded font-bold" style={{ background: '#8B5CF620', border: '1px solid #8B5CF640', color: '#8B5CF6' }}>
+          <span className="text-xs font-black tracking-widest text-gray-800">DIGITAL TWIN</span>
+          <span className="text-[9px] px-2 py-0.5 rounded font-bold bg-purple-50 border border-purple-200 text-purple-700">
             Physics Model + AI/ML
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[9px]" style={{ color: '#4B5563' }}>STEP 4 / 7</span>
+          <span className="text-[9px] text-gray-400">STEP 4 / 7</span>
           <button onClick={() => navigate('/health')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
-            style={{ background: '#FF6B3520', border: '1px solid #FF6B3540', color: '#FF6B35' }}>
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+            style={{ background: '#FF6B35', boxShadow: '0 2px 8px rgba(255,107,53,0.25)' }}>
             AI Health <ChevronRight size={12} />
           </button>
         </div>
@@ -70,26 +70,25 @@ const DigitalTwinPage = () => {
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left — Actual State */}
-        <div className="flex-1 flex flex-col" style={{ borderRight: '1px solid #1E2D3D' }}>
-          <div className="px-5 py-3 shrink-0" style={{ borderBottom: '1px solid #1E2D3D', background: '#080E18' }}>
+        <div className="flex-1 flex flex-col border-r border-gray-100">
+          <div className="px-5 py-3 shrink-0 border-b border-gray-100 bg-white">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full" style={{ background: '#22C55E', boxShadow: '0 0 6px #22C55E' }} />
-              <span className="text-xs font-black tracking-wider" style={{ color: '#22C55E' }}>ACTUAL ENGINE STATE</span>
-              <span className="text-[9px] ml-1" style={{ color: '#4B5563' }}>Live telemetry from virtual sensors</span>
+              <span className="text-xs font-black tracking-wider text-green-600">ACTUAL ENGINE STATE</span>
+              <span className="text-[9px] ml-1 text-gray-400">Live telemetry from virtual sensors</span>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex-1 overflow-y-auto p-5" style={{ background: '#F8FAFC' }}>
             <div className="space-y-2">
               {PARAMS.map(p => {
                 const a = telemetry[p.key];
                 return (
-                  <div key={p.key} className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                    style={{ background: '#0D1117', border: '1px solid #1E2D3D' }}>
-                    <span className="text-xs font-semibold w-24 shrink-0" style={{ color: '#64748B' }}>{p.label}</span>
-                    <span className="text-xl font-black tabular-nums" style={{ color: '#E2E8F0' }}>
+                  <div key={p.key} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm">
+                    <span className="text-xs font-semibold w-24 shrink-0 text-gray-500">{p.label}</span>
+                    <span className="text-xl font-black tabular-nums text-gray-800">
                       {fmtVal(a, p.decimals)}
-                      <span className="text-xs font-normal ml-1" style={{ color: '#4B5563' }}>{p.unit}</span>
+                      <span className="text-xs font-normal ml-1 text-gray-400">{p.unit}</span>
                     </span>
                   </div>
                 );
@@ -97,9 +96,9 @@ const DigitalTwinPage = () => {
             </div>
 
             {/* Data source */}
-            <div className="mt-4 p-3 rounded-xl" style={{ background: '#080E18', border: '1px solid #1E2D3D' }}>
-              <p className="text-[9px] font-bold mb-1" style={{ color: '#64748B' }}>DATA SOURCE</p>
-              <p className="text-[10px]" style={{ color: '#4B5563' }}>
+            <div className="mt-4 p-3 rounded-xl bg-white border border-gray-100">
+              <p className="text-[9px] font-bold mb-1 text-gray-500">DATA SOURCE</p>
+              <p className="text-[10px] text-gray-400">
                 Sensor layer → Data processing → Digital Twin<br />
                 Update rate: ~1800ms | Filter: Moving average
               </p>
@@ -108,9 +107,9 @@ const DigitalTwinPage = () => {
         </div>
 
         {/* Center — Comparison */}
-        <div className="w-64 shrink-0 flex flex-col" style={{ background: '#060C16', borderRight: '1px solid #1E2D3D' }}>
-          <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid #1E2D3D', background: '#080E18' }}>
-            <p className="text-xs font-black tracking-wider text-center" style={{ color: '#8B5CF6' }}>DEVIATION</p>
+        <div className="w-64 shrink-0 flex flex-col border-r border-gray-100" style={{ background: '#FAFBFC' }}>
+          <div className="px-4 py-3 shrink-0 border-b border-gray-100 bg-white">
+            <p className="text-xs font-black tracking-wider text-center text-purple-600">DEVIATION</p>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -121,17 +120,17 @@ const DigitalTwinPage = () => {
               const pct  = (diff != null && e !== 0) ? (diff/Math.abs(e))*100 : 0;
               const color = pct > 18 ? '#EF4444' : pct > 8 ? '#F59E0B' : '#22C55E';
               return (
-                <div key={p.key} className="flex flex-col gap-1 px-3 py-3 rounded-xl"
-                  style={{ background: '#0D1117', border: `1px solid ${pct > 8 ? color+'40' : '#1E2D3D'}` }}>
-                  <span className="text-[9px] font-bold" style={{ color: '#4B5563' }}>{p.label}</span>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1E2D3D' }}>
+                <div key={p.key} className="flex flex-col gap-1 px-3 py-3 rounded-xl bg-white shadow-sm"
+                  style={{ border: `1px solid ${pct > 8 ? color+'30' : '#E5E7EB'}` }}>
+                  <span className="text-[9px] font-bold text-gray-500">{p.label}</span>
+                  <div className="h-1.5 rounded-full overflow-hidden bg-gray-100">
                     <motion.div className="h-full rounded-full"
                       style={{ background: color, width: `${Math.min(100, pct * 4)}%` }}
                       animate={{ width: `${Math.min(100, pct * 4)}%` }}
                       transition={{ duration: 0.5 }} />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px]" style={{ color: '#4B5563' }}>
+                    <span className="text-[9px] text-gray-400">
                       Δ {diff != null ? diff.toFixed(1) : '—'} {p.unit}
                     </span>
                     <span className="text-[9px] font-bold" style={{ color }}>
@@ -144,9 +143,10 @@ const DigitalTwinPage = () => {
           </div>
 
           {/* Status */}
-          <div className="p-4 shrink-0" style={{ borderTop: '1px solid #1E2D3D' }}>
-            <div className="rounded-xl p-3 text-center" style={{ background: `${stColor}15`, border: `1px solid ${stColor}40` }}>
-              <p className="text-[9px] font-bold mb-1" style={{ color: '#64748B' }}>ENGINE STATUS</p>
+          <div className="p-4 shrink-0 border-t border-gray-100">
+            <div className="rounded-xl p-3 text-center"
+              style={{ background: `${stColor}10`, border: `1px solid ${stColor}30` }}>
+              <p className="text-[9px] font-bold mb-1 text-gray-500">ENGINE STATUS</p>
               <p className="text-base font-black" style={{ color: stColor }}>{st.toUpperCase()}</p>
             </div>
           </div>
@@ -154,26 +154,25 @@ const DigitalTwinPage = () => {
 
         {/* Right — Expected State + Model tabs */}
         <div className="flex-1 flex flex-col">
-          <div className="px-5 py-3 shrink-0" style={{ borderBottom: '1px solid #1E2D3D', background: '#080E18' }}>
+          <div className="px-5 py-3 shrink-0 border-b border-gray-100 bg-white">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full" style={{ background: '#8B5CF6', boxShadow: '0 0 6px #8B5CF6' }} />
-              <span className="text-xs font-black tracking-wider" style={{ color: '#8B5CF6' }}>EXPECTED ENGINE STATE</span>
-              <span className="text-[9px] ml-1" style={{ color: '#4B5563' }}>Physics model output</span>
+              <span className="text-xs font-black tracking-wider text-purple-600">EXPECTED ENGINE STATE</span>
+              <span className="text-[9px] ml-1 text-gray-400">Physics model output</span>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex-1 overflow-y-auto p-5" style={{ background: '#F8FAFC' }}>
             <div className="space-y-2">
               {PARAMS.map(p => {
                 const e = physicsExpected?.[p.key];
                 const a = telemetry[p.key];
                 return (
-                  <div key={p.key} className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                    style={{ background: '#0D1117', border: '1px solid #1E2D3D' }}>
-                    <span className="text-xs font-semibold w-24 shrink-0" style={{ color: '#64748B' }}>{p.label}</span>
-                    <span className="text-xl font-black tabular-nums" style={{ color: '#8B5CF6' }}>
+                  <div key={p.key} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm">
+                    <span className="text-xs font-semibold w-24 shrink-0 text-gray-500">{p.label}</span>
+                    <span className="text-xl font-black tabular-nums text-purple-600">
                       {fmtVal(e, p.decimals)}
-                      <span className="text-xs font-normal ml-1" style={{ color: '#4B5563' }}>{p.unit}</span>
+                      <span className="text-xs font-normal ml-1 text-gray-400">{p.unit}</span>
                     </span>
                     <div className="ml-auto">
                       <DeviationBadge actual={a} expected={e} />
@@ -186,24 +185,24 @@ const DigitalTwinPage = () => {
             {/* Model cards */}
             <div className="mt-4 grid grid-cols-1 gap-3">
               {/* Physics model */}
-              <div className="rounded-xl p-4" style={{ background: '#0D1117', border: '1px solid #1E2D3D' }}>
+              <div className="rounded-xl p-4 bg-white border border-gray-100 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
-                  <Cpu size={14} className="text-blue-400" />
-                  <span className="text-xs font-bold" style={{ color: '#3B82F6' }}>Physics Model</span>
+                  <Cpu size={14} className="text-blue-500" />
+                  <span className="text-xs font-bold text-blue-600">Physics Model</span>
                 </div>
-                <p className="text-[10px]" style={{ color: '#4B5563' }}>
+                <p className="text-[10px] text-gray-400">
                   Expected = f(RPM, Load, Ambient)<br />
                   Thermal · Oil · Vibration · Fuel equations
                 </p>
               </div>
 
               {/* AI model */}
-              <div className="rounded-xl p-4" style={{ background: '#0D1117', border: '1px solid #1E2D3D' }}>
+              <div className="rounded-xl p-4 bg-white border border-gray-100 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
-                  <Brain size={14} className="text-orange-400" />
-                  <span className="text-xs font-bold" style={{ color: '#F59E0B' }}>AI / ML Model</span>
+                  <Brain size={14} className="text-orange-500" />
+                  <span className="text-xs font-bold text-orange-500">AI / ML Model</span>
                 </div>
-                <p className="text-[10px]" style={{ color: '#4B5563' }}>
+                <p className="text-[10px] text-gray-400">
                   Anomaly Score: <span style={{ color: soh?.anomalyScore > 60 ? '#EF4444' : '#22C55E', fontWeight:'bold' }}>{soh?.anomalyScore ?? 0}/100</span><br />
                   Pattern detection · Baseline deviation<br />
                   Trend analysis · Fault classification
@@ -213,10 +212,10 @@ const DigitalTwinPage = () => {
           </div>
 
           {/* Navigate */}
-          <div className="p-4 shrink-0" style={{ borderTop: '1px solid #1E2D3D' }}>
+          <div className="p-4 shrink-0 border-t border-gray-100">
             <button onClick={() => navigate('/health')}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm"
-              style={{ background: 'linear-gradient(135deg, #FF6B35, #FF3D00)', color: 'white', boxShadow: '0 0 20px rgba(255,107,53,0.25)' }}>
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm text-white"
+              style={{ background: '#FF6B35', boxShadow: '0 4px 14px rgba(255,107,53,0.3)' }}>
               Proceed to AI Health <ChevronRight size={16} />
             </button>
           </div>
