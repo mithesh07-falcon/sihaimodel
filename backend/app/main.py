@@ -21,14 +21,25 @@ logger = logging.getLogger("AeroTwinBackend")
 
 app = FastAPI(title="AeroTwin Digital Twin GCS Backend")
 
-# Enable CORS for frontend local development
+# CORS — allow Vercel frontend + local dev
+# Set ALLOWED_ORIGINS env var to comma-separated list of allowed URLs.
+# Defaults to wildcard so local dev works out-of-the-box.
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "*")
+ALLOW_ORIGINS = [o.strip() for o in _raw_origins.split(",")] if _raw_origins != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health")
+def health_check():
+    """Render health check endpoint."""
+    return {"status": "ok", "model_loaded": model is not None}
 
 # Global variables
 model = None
@@ -190,7 +201,9 @@ SIM_TARGETS = {
         "rpm": 4400.0, "cht": 112.0, "egt": 865.0, "oil_pressure": 360.0, "oil_temp": 95.0,
         "fuel_flow": 13.2, "map": 95.0, "vibration": 1.6, "voltage": 14.0, "altitude": 2500.0,
         "ambient_temp": 15.0, "afr": 16.8
-    }
+    },
+    # random is generated dynamically in the WS handler
+    "random": None
 }
 
 @app.websocket("/ws/telemetry")
@@ -212,7 +225,17 @@ async def websocket_telemetry(websocket: WebSocket):
                 data = json.loads(data_str)
                 if "preset" in data:
                     preset = data["preset"]
-                    if preset in SIM_TARGETS:
+                    if preset == "random":
+                        current_state = "nominal"
+                        # Randomly perturb 3-4 parameters outside nominal
+                        base = dict(SIM_TARGETS["nominal"])
+                        keys = list(base.keys())
+                        random.shuffle(keys)
+                        for k in keys[:4]:
+                            base[k] *= random.uniform(0.70, 1.35)
+                        curr_vals = base
+                        logger.info("Random scenario generated")
+                    elif preset in SIM_TARGETS and SIM_TARGETS[preset] is not None:
                         current_state = preset
                         logger.info(f"Simulation preset updated to: {current_state}")
                 # Users can manually change variables via websocket
@@ -227,11 +250,10 @@ async def websocket_telemetry(websocket: WebSocket):
                 logger.warning(f"Error parsing websocket message: {e}")
             
             # Smoothly transition (lerp) toward target simulation state
-            target_vals = SIM_TARGETS[current_state]
+            target_vals = SIM_TARGETS.get(current_state)
             for key in curr_vals:
-                # Manual edits skip simple lerp if they are active (handled in main loop)
-                # Apply gradual interpolation
-                curr_vals[key] += (target_vals[key] - curr_vals[key]) * 0.1
+                if target_vals:
+                    curr_vals[key] += (target_vals[key] - curr_vals[key]) * 0.1
                 
                 # Add tiny random walks/noise
                 noise_scales = {
