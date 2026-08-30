@@ -6,7 +6,7 @@ import {
   DiagnosisPanel, 
   Gauges, 
   TrendCharts 
-} from './components/Components';
+} from './Components/Components';
 import { 
   Plane, 
   Radio, 
