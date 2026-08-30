@@ -9,12 +9,13 @@ const Layout = () => {
   useEffect(() => { connectWebSocket(); }, [connectWebSocket]);
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans" style={{ background: '#F8FAFC' }}>
-      {/* Sidebar rail */}
-      <div className="h-full shrink-0 z-30">
+    <div className="flex h-screen overflow-hidden font-sans" style={{ background: '#050B14' }}>
+      {/* Floating sidebar rail */}
+      <div className="p-2 h-full shrink-0 z-30">
         <Sidebar />
       </div>
-      {/* Page content */}
+
+      {/* Page content — each page manages its own background/padding */}
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
         <div className="flex-1 overflow-y-auto">
           <AppRouter />
