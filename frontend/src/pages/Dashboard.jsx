@@ -37,8 +37,8 @@ const Dashboard = () => (
       </div>
 
       {/* Center: 3D twin */}
-      <div className="lg:col-span-5 bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-gray-50">
+      <div className="lg:col-span-5 bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden flex flex-col min-h-[460px] h-[520px]">
+        <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-gray-50 shrink-0">
           <div>
             <h3 className="text-sm font-bold text-gray-800">3D Digital Twin</h3>
             <p className="text-xs text-gray-400">Live engine health mapping</p>
@@ -47,7 +47,7 @@ const Dashboard = () => (
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />ROTAX-MALE-009
           </span>
         </div>
-        <div className="flex-1 min-h-0 p-3">
+        <div className="flex-1 min-h-0 p-3 flex flex-col">
           <EngineModel3D />
         </div>
       </div>
