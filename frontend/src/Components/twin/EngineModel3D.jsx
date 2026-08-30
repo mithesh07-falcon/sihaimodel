@@ -9,24 +9,24 @@ import {
 } from './engineAnimation';
 import * as THREE from 'three';
 
-// ─── Colours ─────────────────────────────────────────────────────────────────
+// ─── Colours — realistic cast-aluminium / machined-steel engine palette ──────
 const C = {
-  crankcase: '#64748B',
-  barrel:    '#475569',
-  fin:       '#334155',
-  head:      '#94A3B8',
-  piston:    '#E2E8F0',
-  rod:       '#B0BEC5',
-  ring:      '#607D8B',
-  crank:     '#CBD5E1',
-  carb:      '#78909C',
-  exhaust:   '#78350F',
-  oil:       '#334155',
-  oilLine:   '#D97706',
-  fuel:      '#0284C7',
-  gearbox:   '#546E7A',
-  spinner:   '#FF6B35',
-  alt:       '#1E293B',
+  crankcase: '#C0C8D0',   // cast aluminium crankcase  – warm silver-grey
+  barrel:    '#B8C0C8',   // air-cooled barrel         – slightly cooler silver
+  fin:       '#A8B4BC',   // cooling fins              – slightly darker silver
+  head:      '#D0D8E0',   // cylinder head casting     – bright machined aluminium
+  piston:    '#E8ECF0',   // piston crown              – polished alloy
+  rod:       '#C4CDD5',   // connecting rod            – forged steel silver
+  ring:      '#8A9BAA',   // piston rings / rod cap    – harder steel, darker
+  crank:     '#D4DCE4',   // crankshaft                – bright turned steel
+  carb:      '#B0B8C0',   // carburetor body           – cast aluminium
+  exhaust:   '#7A4828',   // exhaust manifold          – dark heat-stained steel
+  oil:       '#8A9BAA',   // oil tank                  – anodised aluminium
+  oilLine:   '#C8A060',   // oil scavenge line         – brass/copper fitting
+  fuel:      '#4A90C4',   // coolant hose / fuel rail  – blue silicone
+  gearbox:   '#B4BCC4',   // reduction gearbox         – cast aluminium
+  spinner:   '#FF6B35',   // prop spinner              – safety orange (brand accent)
+  alt:       '#9AA8B4',   // alternator housing        – anodised dark aluminium
 };
 
 // ─── Single Cylinder Assembly (1 cylinder unit, air-cooled barrel + liquid head) ──
@@ -50,11 +50,11 @@ const CylinderUnit = React.memo(({
       </mesh>
     ))}
 
-    {/* Bore hollow indicator (dark inner bore face) */}
+    {/* Bore hollow indicator (dark inner bore face – slightly shadowed silver) */}
     <mesh rotation={[0, 0, Math.PI / 2]}
       position={[isLeft ? -0.7 : 0.7, 0, 0]}>
       <cylinderGeometry args={[0.46, 0.46, 0.02, 20]} />
-      <meshStandardMaterial color="#1E293B" metalness={0.9} roughness={0.2} />
+      <meshStandardMaterial color="#7A8A96" metalness={0.85} roughness={0.25} />
     </mesh>
 
     {/* ── Liquid-Cooled Cylinder Head ── */}
@@ -72,10 +72,10 @@ const CylinderUnit = React.memo(({
         />
       </mesh>
 
-      {/* Rocker cover */}
+      {/* Rocker cover – bright machined aluminium */}
       <mesh position={[isLeft ? -0.25 : 0.25, 0.1, 0]}>
         <boxGeometry args={[0.1, 0.82, 0.82]} />
-        <meshStandardMaterial color="#1E293B" metalness={0.9} roughness={0.15} />
+        <meshStandardMaterial color="#C8D4DC" metalness={0.85} roughness={0.2} />
       </mesh>
 
       {/* Spark plug 1 */}
@@ -313,10 +313,10 @@ const EngineGeometry = () => {
         <boxGeometry args={[2.3, 1.5, 2.0]} />
         <meshStandardMaterial color={C.crankcase} metalness={0.8} roughness={0.25} />
       </mesh>
-      {/* Case split seam */}
+      {/* Case split seam – slightly darker silver gasket line */}
       <mesh position={[0, 0, 0]}>
         <boxGeometry args={[2.34, 0.06, 2.04]} />
-        <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.15} />
+        <meshStandardMaterial color="#9AAAB4" metalness={0.9} roughness={0.15} />
       </mesh>
 
       {/* ── 2. Crankshaft ── */}
@@ -424,7 +424,7 @@ const EngineGeometry = () => {
       <group position={[0, -1.08, 0]}>
         <mesh>
           <boxGeometry args={[1.55, 0.36, 0.78]} />
-          <meshStandardMaterial color="#1E293B" metalness={0.85} roughness={0.35} />
+          <meshStandardMaterial color="#8A9BAA" metalness={0.85} roughness={0.35} />
         </mesh>
         {/* Coolant hose */}
         <mesh position={[-0.82, 0.12, 0]} rotation={[0, 0, 0.55]}>
@@ -461,7 +461,7 @@ const EngineGeometry = () => {
         {/* Housing */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.32, 0.44, 0.52, 16]} />
-          <meshStandardMaterial color={C.gearbox} metalness={0.8} roughness={0.25} />
+          <meshStandardMaterial color={C.gearbox} metalness={0.82} roughness={0.22} />
         </mesh>
         {/* Prop flange + spinner (slower rotation group) */}
         <group ref={propRef} position={[0, 0, 0.34]}>
@@ -492,7 +492,7 @@ const EngineGeometry = () => {
       <group position={[0, 0.1, -1.28]} ref={altRef}>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.28, 0.28, 0.32, 14]} />
-          <meshStandardMaterial color={C.alt} metalness={0.85} roughness={0.25} />
+          <meshStandardMaterial color={C.alt} metalness={0.88} roughness={0.22} />
         </mesh>
         {/* Belt pulley */}
         <mesh position={[0, 0.32, 0]} rotation={[Math.PI / 2, 0, 0]}>
