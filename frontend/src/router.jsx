@@ -1,19 +1,23 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Dashboard  from './pages/Dashboard';
-import Telemetry  from './pages/Telemetry';
-import Analytics  from './pages/Analytics';
-import Tasks      from './pages/Tasks';
-import Settings   from './pages/Settings';
+import MissionControl   from './pages/MissionControl';
+import EngineStartup    from './pages/EngineStartup';
+import SensorMonitoring from './pages/SensorMonitoring';
+import DigitalTwinPage  from './pages/DigitalTwinPage';
+import AIHealthPage     from './pages/AIHealthPage';
+import FaultSimulation  from './pages/FaultSimulation';
+import MaintenancePage  from './pages/MaintenancePage';
 
 const AppRouter = () => (
   <Routes>
-    <Route path="/"          element={<Dashboard />}  />
-    <Route path="/telemetry" element={<Telemetry />}  />
-    <Route path="/analytics" element={<Analytics />}  />
-    <Route path="/tasks"     element={<Tasks />}      />
-    <Route path="/settings"  element={<Settings />}   />
-    <Route path="*"          element={<Dashboard />}  />
+    <Route path="/"            element={<MissionControl />}   />
+    <Route path="/engine"      element={<EngineStartup />}    />
+    <Route path="/sensors"     element={<SensorMonitoring />} />
+    <Route path="/twin"        element={<DigitalTwinPage />}  />
+    <Route path="/health"      element={<AIHealthPage />}     />
+    <Route path="/faults"      element={<FaultSimulation />}  />
+    <Route path="/maintenance" element={<MaintenancePage />}  />
+    <Route path="*"            element={<MissionControl />}   />
   </Routes>
 );
 

@@ -1,102 +1,101 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Cpu, Radio, BarChart3, ClipboardList, Settings, Bell, User } from 'lucide-react';
+import { RadioTower, Cpu, Radio, GitCompare, HeartPulse, Zap, Wrench } from 'lucide-react';
 import { useEngineStore } from '../../store/useEngineStore';
-import NotificationsDropdown from './NotificationsDropdown';
-import ProfileMenu from './ProfileMenu';
 
-const NAV_LINKS = [
-  { to: '/',           icon: Cpu,           label: 'Dashboard',     end: true },
-  { to: '/telemetry',  icon: Radio,         label: 'Live Telemetry' },
-  { to: '/analytics',  icon: BarChart3,     label: 'Analytics'      },
-  { to: '/tasks',      icon: ClipboardList, label: 'Maintenance'    },
-  { to: '/settings',   icon: Settings,      label: 'Settings'       },
+const NAV = [
+  { to:'/',            icon: RadioTower,  label:'Mission Control', end:true },
+  { to:'/engine',      icon: Cpu,         label:'Engine Startup'   },
+  { to:'/sensors',     icon: Radio,       label:'Sensor Monitor'   },
+  { to:'/twin',        icon: GitCompare,  label:'Digital Twin'     },
+  { to:'/health',      icon: HeartPulse,  label:'AI Health'        },
+  { to:'/faults',      icon: Zap,         label:'Fault Simulation' },
+  { to:'/maintenance', icon: Wrench,      label:'Maintenance'      },
 ];
 
-const NavIcon = ({ to, icon: Icon, label, end }) => (
-  <NavLink
-    to={to}
-    end={end}
-    title={label}
-    className={({ isActive }) =>
-      `group relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200
-       ${isActive ? 'bg-orange-500 text-white shadow-md' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'}`
-    }
-  >
-    {({ isActive }) => (
-      <>
-        <Icon size={17} strokeWidth={isActive ? 2.5 : 1.8} />
-        <span className="absolute left-full ml-2.5 px-2.5 py-1 bg-neutral-800 text-white text-xs font-medium rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-          {label}
-        </span>
-      </>
-    )}
-  </NavLink>
-);
-
 const Sidebar = () => {
-  const unreadCount = useEngineStore(s => s.unreadCount);
-  const [showNotif, setShowNotif] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const notifRef = useRef(null);
-  const profileRef = useRef(null);
+  const uavPhase = useEngineStore(s => s.uavPhase);
+  const soh      = useEngineStore(s => s.soh);
+  const activeFault = useEngineStore(s => s.activeFault);
 
-  // Close dropdowns on outside click
-  useEffect(() => {
-    const handler = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotif(false);
-      if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfile(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  const phaseColor =
+    uavPhase === 'running' ? '#22C55E' :
+    uavPhase === 'fault'   ? '#EF4444' :
+    uavPhase === 'arming'  ? '#F59E0B' : '#4B5563';
 
   return (
-    <nav className="flex flex-col items-center justify-between py-4 px-2 bg-neutral-900 rounded-3xl h-full w-14 shrink-0 shadow-card-lg relative">
-      {/* Logo → Dashboard */}
-      <div className="flex flex-col items-center gap-4">
-        <NavLink to="/" title="AeroTwin Dashboard">
-          <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center shadow-md hover:bg-orange-600 transition-colors">
-            <span className="text-white font-black text-xs leading-none">AT</span>
-          </div>
-        </NavLink>
+    <nav className="flex flex-col items-center py-3 px-1.5 rounded-2xl h-full w-14 shrink-0 relative"
+      style={{ background: '#0D1117', border: '1px solid #1E2D3D' }}
+    >
+      {/* Logo */}
+      <NavLink to="/" title="UAV Mission Control">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #FF6B35, #FF3D00)' }}>
+          <span className="text-white font-black text-[10px] leading-none">UAV</span>
+        </div>
+      </NavLink>
 
-        {/* Nav icons */}
-        <div className="flex flex-col items-center gap-1 mt-2">
-          {NAV_LINKS.map(link => <NavIcon key={link.to} {...link} />)}
+      {/* Phase indicator dot */}
+      <div className="w-8 flex items-center justify-center mb-3">
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="w-2 h-2 rounded-full" style={{ background: phaseColor, boxShadow: uavPhase !== 'standby' ? `0 0 6px ${phaseColor}` : 'none' }} />
+          <span className="text-[7px] font-bold" style={{ color: phaseColor }}>
+            {uavPhase === 'running' ? 'RUN' : uavPhase === 'arming' ? 'ARM' : uavPhase === 'fault' ? 'FLT' : 'SBY'}
+          </span>
         </div>
       </div>
 
-      {/* Bottom: Bell + Avatar */}
-      <div className="flex flex-col items-center gap-2">
-        {/* Bell with dropdown */}
-        <div ref={notifRef} className="relative">
-          <button
-            onClick={() => { setShowNotif(v => !v); setShowProfile(false); }}
-            className="w-10 h-10 rounded-2xl flex items-center justify-center text-neutral-400 hover:bg-neutral-800 hover:text-white transition-all relative"
-            title="Notifications"
+      {/* Nav links */}
+      <div className="flex flex-col items-center gap-1 flex-1">
+        {NAV.map(({ to, icon: Icon, label, end }, i) => (
+          <NavLink key={to} to={to} end={end} title={label}
+            className={({ isActive }) =>
+              `group relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                isActive
+                  ? 'text-white shadow-lg'
+                  : 'hover:bg-white/5'
+              }`
+            }
+            style={({ isActive }) => isActive ? {
+              background: 'linear-gradient(135deg, #FF6B35, #FF3D00)',
+              boxShadow: '0 0 12px rgba(255,107,53,0.4)',
+            } : {}}
           >
-            <Bell size={17} strokeWidth={1.8} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 min-w-[14px] h-3.5 bg-red-500 rounded-full text-[8px] font-black text-white flex items-center justify-center px-0.5">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
+            {({ isActive }) => (
+              <>
+                <Icon size={16} strokeWidth={isActive ? 2.5 : 1.8}
+                  className={isActive ? 'text-white' : 'text-slate-500'} />
+                {/* Tooltip */}
+                <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 text-xs font-semibold"
+                  style={{ background: '#1E2D3D', color: '#E2E8F0', border: '1px solid #2D4A6A' }}>
+                  {label}
+                </span>
+                {/* Step number badge */}
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black"
+                  style={{ background: '#1E2D3D', color: '#4B5563', border: '1px solid #2D4A6A' }}>
+                  {i + 1}
+                </span>
+              </>
             )}
-          </button>
-          {showNotif && <NotificationsDropdown onClose={() => setShowNotif(false)} />}
-        </div>
+          </NavLink>
+        ))}
+      </div>
 
-        {/* Avatar with profile menu */}
-        <div ref={profileRef} className="relative">
-          <button
-            onClick={() => { setShowProfile(v => !v); setShowNotif(false); }}
-            className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center hover:ring-2 hover:ring-orange-400 transition-all"
-            title="Profile"
-          >
-            <User size={14} className="text-white" strokeWidth={2} />
-          </button>
-          {showProfile && <ProfileMenu onClose={() => setShowProfile(false)} />}
-        </div>
+      {/* SOH badge */}
+      <div className="flex flex-col items-center mb-2 mt-1">
+        <span className="text-[8px] font-bold mb-0.5" style={{ color: '#4B5563' }}>SOH</span>
+        <span className="text-sm font-black" style={{
+          color: (soh?.overall ?? 100) >= 85 ? '#22C55E' : (soh?.overall ?? 100) >= 65 ? '#F59E0B' : '#EF4444'
+        }}>
+          {soh?.overall ?? '—'}
+          {uavPhase !== 'standby' ? '%' : ''}
+        </span>
+      </div>
+
+      {/* SIH badge */}
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+        style={{ background: '#1A1A2E', border: '1px solid #2D3748' }}>
+        <span className="text-[7px] font-black text-center leading-tight" style={{ color: '#FF6B35' }}>SIH{'\n'}2026</span>
       </div>
     </nav>
   );
