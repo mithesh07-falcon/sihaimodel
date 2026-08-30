@@ -1,67 +1,62 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Html } from '@react-three/drei';
-import { motion } from 'framer-motion';
 
-// Status colors for callout badges
-const STATUS_COLORS = {
-  healthy:  { border: '#D1FAE5', bg: '#F0FDF4', dot: '#22C55E', text: '#15803D', label: 'Normal' },
-  warning:  { border: '#FDE68A', bg: '#FFFBEB', dot: '#F59E0B', text: '#B45309', label: 'Warning' },
-  critical: { border: '#FECACA', bg: '#FEF2F2', dot: '#EF4444', text: '#B91C1C', label: 'Critical' },
+const STATUS_STYLES = {
+  healthy:  { dotColor: '#22C55E', textColor: '#15803D', bg: '#F0FDF4', border: '#D1FAE5', label: 'NORMAL'   },
+  warning:  { dotColor: '#F59E0B', textColor: '#B45309', bg: '#FFFBEB', border: '#FDE68A', label: 'WARNING'  },
+  critical: { dotColor: '#EF4444', textColor: '#B91C1C', bg: '#FEF2F2', border: '#FECACA', label: 'CRITICAL' },
 };
 
-/**
- * PartCallout — a world-anchored floating card rendered via drei <Html occlude>
- * Props:
- *   position  [x,y,z]   — 3D anchor point on the engine
- *   label     string    — sensor/component name
- *   value     string    — live value + unit
- *   status    string    — 'healthy' | 'warning' | 'critical'
- */
-const PartCallout = ({ position, label, value, status = 'healthy' }) => {
-  const c = STATUS_COLORS[status] || STATUS_COLORS.healthy;
+function getStatus(val, warnHigh, critHigh, warnLow, critLow) {
+  if ((critHigh != null && val > critHigh) || (critLow != null && val < critLow)) return 'critical';
+  if ((warnHigh != null && val > warnHigh) || (warnLow != null && val < warnLow)) return 'warning';
+  return 'healthy';
+}
+
+const PartCallout = ({ position, label, value, unit, rawValue, warnHigh, critHigh, warnLow, critLow, overrideStatus }) => {
+  const status = overrideStatus || getStatus(rawValue ?? 0, warnHigh, critHigh, warnLow, critLow);
+  const s = STATUS_STYLES[status] || STATUS_STYLES.healthy;
 
   return (
-    <Html position={position} center occlude distanceFactor={8} zIndexRange={[10, 0]}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
+    <Html position={position} center occlude distanceFactor={8} zIndexRange={[16, 0]}>
+      <div
         style={{
-          background: c.bg,
-          border: `1px solid ${c.border}`,
-          borderRadius: 10,
-          padding: '6px 10px',
-          minWidth: 110,
-          boxShadow: '0 2px 12px rgba(0,0,0,0.10)',
+          background: s.bg, border: `1.5px solid ${s.border}`,
+          borderRadius: 12, padding: '7px 12px', minWidth: 115,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
           fontFamily: 'Inter, system-ui, sans-serif',
-          pointerEvents: 'none',
-          userSelect: 'none',
-          whiteSpace: 'nowrap',
+          pointerEvents: 'none', userSelect: 'none', whiteSpace: 'nowrap',
         }}
       >
-        {/* Header row */}
-        <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}>
-          <div style={{ width:7, height:7, borderRadius:'50%', background:c.dot,
-            boxShadow: status === 'critical' ? `0 0 0 3px ${c.dot}33` : 'none' }} />
-          <span style={{ fontSize:10, fontWeight:600, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+        {/* Label row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%', background: s.dotColor,
+            boxShadow: status === 'critical' ? `0 0 6px 2px ${s.dotColor}66` : 'none',
+            animation: status === 'critical' ? 'pulse 1.5s infinite' : 'none',
+          }} />
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             {label}
           </span>
         </div>
         {/* Value */}
-        <div style={{ fontSize:13, fontWeight:700, color:'#111827', lineHeight:1.2 }}>{value}</div>
-        {/* Status */}
-        <div style={{ fontSize:9, fontWeight:600, color:c.text, marginTop:2, textTransform:'uppercase', letterSpacing:'0.04em' }}>
-          {c.label}
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#111827', lineHeight: 1.1 }}>
+          {value} <span style={{ fontSize: 10, fontWeight: 500, color: '#9CA3AF' }}>{unit}</span>
         </div>
-        {/* Connector dot */}
+        {/* Status label */}
+        <div style={{ fontSize: 9, fontWeight: 700, color: s.textColor, marginTop: 3, letterSpacing: '0.05em' }}>
+          {s.label}
+        </div>
+        {/* Connector dot at bottom */}
         <div style={{
-          position:'absolute', bottom:-5, left:'50%', transform:'translateX(-50%)',
-          width:8, height:8, borderRadius:'50%', background:'white',
-          border:`2px solid ${c.dot}`, boxShadow:'0 1px 4px rgba(0,0,0,0.12)'
+          position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)',
+          width: 10, height: 10, borderRadius: '50%', background: 'white',
+          border: `2.5px solid ${s.dotColor}`, boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
         }} />
-      </motion.div>
+      </div>
     </Html>
   );
 };
 
 export default PartCallout;
+export { getStatus };
