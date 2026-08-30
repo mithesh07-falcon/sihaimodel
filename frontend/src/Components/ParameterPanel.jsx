@@ -11,11 +11,12 @@ const ParameterPanel = () => {
   const [activeTab, setActiveTab] = useState('combustion'); // combustion, lubrication, external
 
   const presets = [
-    { id: 'nominal', label: '✓ Nominal Cruise' },
-    { id: 'overheating', label: '⚠️ Overheating Fault' },
-    { id: 'oil_starvation', label: '💥 Oil Starvation Fault' },
-    { id: 'bearing_wear', label: '⚡ Bearing Wear Fault' },
-    { id: 'lean_misfire', label: '🔥 Fuel-Lean Misfire' }
+    { id: 'nominal',        label: '✓ Nominal Cruise' },
+    { id: 'overheating',   label: '⚠️ Overheating Fault' },
+    { id: 'oil_starvation',label: '💥 Oil Starvation Fault' },
+    { id: 'bearing_wear',  label: '⚡ Bearing Wear Fault' },
+    { id: 'lean_misfire',  label: '🔥 Fuel-Lean Misfire' },
+    { id: 'random',        label: '🎲 Random Scenario' }
   ];
 
   // Group sliders into tabs for clean layouts
