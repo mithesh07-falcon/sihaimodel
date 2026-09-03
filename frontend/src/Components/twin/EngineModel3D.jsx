@@ -107,10 +107,17 @@ const CylinderUnit = React.memo(({
           />
         </mesh>
 
-        {/* Valve / rocker cover — same brushed alu but slightly shinier */}
+        {/* Valve / rocker cover — signature Rotax green */}
         <mesh position={[isLeft ? -0.27 : 0.27, 0.08, 0]}>
           <boxGeometry args={[0.11, 0.84, 0.84]} />
-          <meshPhysicalMaterial {...pm(MAT_BRUSHED_ALU, { roughness: 0.28 })} {...xrayProps} />
+          <meshPhysicalMaterial
+            color="#059669"
+            metalness={0.65}
+            roughness={0.3}
+            clearcoat={0.3}
+            clearcoatRoughness={0.2}
+            {...xrayProps}
+          />
         </mesh>
 
         {/* Coolant hose outlet (rubber) */}
@@ -203,62 +210,30 @@ const CylinderUnit = React.memo(({
 });
 
 // ─── Cinematic Camera Rig ─────────────────────────────────────────────────────
-// Phase 0 (0–2 s): wide establishing pull-in
-// Phase 1 (2 s+):  smooth 15°/s auto-orbit (handed off to OrbitControls)
-// Phase 2:         On critical, snap-focus to fault component with cubic-bezier lerp
 const CameraRig = ({ status, faultComponent, orbitRef }) => {
   const { camera } = useThree();
-  const phase     = useRef(0);   // 0=intro, 1=orbit, 2=fault-focus
-  const elapsed   = useRef(0);
-  const startPos  = useRef(new THREE.Vector3(0, 8, 14));
-  const targetPos = useRef(new THREE.Vector3(0, 2.6, 5.8));
-  const lookAt    = useRef(new THREE.Vector3(0, 0, 0));
 
-  // Fault component → camera focus offset
   const faultOffset = (() => {
     const lc = (faultComponent || '').toLowerCase();
-    if (lc.includes('oil'))      return new THREE.Vector3(1.6, -0.5, 1.1);
+    if (lc.includes('oil'))      return new THREE.Vector3(1.6, -0.3, 1.1);
     if (lc.includes('exhaust'))  return new THREE.Vector3(0,   -0.3, -1.5);
     if (lc.includes('cylinder')) return new THREE.Vector3(-1.5, 0.2, 0.5);
     if (lc.includes('bearing'))  return new THREE.Vector3(0,    0.0, 0.0);
-    return new THREE.Vector3(0, 1.0, 3.8);
+    return new THREE.Vector3(0, 0.5, 3.2);
   })();
 
-  useEffect(() => {
-    camera.position.copy(startPos.current);
-  }, []);
-
-  useFrame((state, delta) => {
-    elapsed.current += delta;
-
-    if (phase.current === 0) {
-      // Intro pull-in over 2.5s with cubic-bezier ease
-      const t = Math.min(elapsed.current / 2.5, 1);
-      const e = cubicEase(t);
-      camera.position.lerpVectors(startPos.current, targetPos.current, e);
-      camera.lookAt(lookAt.current);
-      if (t >= 1) {
-        phase.current = 1;
-        if (orbitRef.current) orbitRef.current.enabled = true;
-      }
-    } else if (phase.current === 1 && (status === 'Warning' || status === 'Critical')) {
-      phase.current = 2;
-      elapsed.current = 0;
-    } else if (phase.current === 2) {
-      // Focus on fault component over 1.5s
-      const t = Math.min(elapsed.current / 1.5, 1);
-      const e = cubicEase(t);
+  useFrame((_, delta) => {
+    if (status === 'Warning' || status === 'Critical') {
       const focusTarget = new THREE.Vector3().addVectors(
-        new THREE.Vector3(0, 2.2, 4.5),
-        faultOffset.clone().multiplyScalar(0.8)
+        new THREE.Vector3(0, 1.8, 3.8),
+        faultOffset.clone().multiplyScalar(0.6)
       );
-      camera.position.lerp(focusTarget, e * delta * 2);
-      camera.lookAt(faultOffset);
-      // Return to orbit after focus
-      if (t >= 1 && (status === 'Healthy')) {
-        phase.current = 1;
-        elapsed.current = 0;
+      camera.position.lerp(focusTarget, delta * 1.5);
+      if (orbitRef.current) {
+        orbitRef.current.target.lerp(faultOffset, delta * 2);
       }
+    } else if (orbitRef.current) {
+      orbitRef.current.target.lerp(new THREE.Vector3(0, 0, 0), delta * 2);
     }
   });
 
@@ -266,7 +241,7 @@ const CameraRig = ({ status, faultComponent, orbitRef }) => {
 };
 
 // ─── Complete Engine Group ────────────────────────────────────────────────────
-const EngineGeometry = ({ xrayMode, carbHovered, setEngineReady }) => {
+const EngineGeometry = ({ xrayMode, carbHovered, setEngineReady, showCallouts = false }) => {
   const telemetry = useEngineStore((s) => s.telemetry);
   const diagnosis  = useEngineStore((s) => s.diagnosis);
 
@@ -383,9 +358,10 @@ const EngineGeometry = ({ xrayMode, carbHovered, setEngineReady }) => {
 
     // ── Vibration jitter (scaled to live reading) ─────────────────────────
     if (groupRef.current) {
-      const j = vibrationJitter(t, vib, 0.013);
+      const j = vibrationJitter(t, vib, 0.016);
       groupRef.current.position.x = j.x;
-      groupRef.current.position.y = j.y;
+      groupRef.current.position.y = -0.15 + j.y;
+      groupRef.current.position.z = j.z;
     }
 
     // ── Global status rim light ───────────────────────────────────────────
@@ -405,7 +381,7 @@ const EngineGeometry = ({ xrayMode, carbHovered, setEngineReady }) => {
   const oilSt  = fc.includes('oil') ? status.toLowerCase() : undefined;
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} scale={[1.2, 1.2, 1.2]} position={[0, -0.15, 0]}>
       {/* ── HDRI studio lighting (fixed top-left 45°) ── */}
       <ambientLight intensity={0.55} />
       <directionalLight
@@ -634,20 +610,24 @@ const EngineGeometry = ({ xrayMode, carbHovered, setEngineReady }) => {
         ))}
       </group>
 
-      {/* ── 11. Live Parameter Callouts ── */}
-      <PartCallout position={[-2.35, 0.45, 0.9]}
-        label="VIBRATION" value={vibV} unit="g RMS"
-        rawValue={telemetry.vibration} warnHigh={2.0} critHigh={3.0} />
-      <PartCallout position={[1.95, -0.65, 1.3]}
-        label="OIL PRESSURE" value={oilPSI} unit="PSI"
-        rawValue={telemetry.oil_pressure} warnLow={280} critLow={200}
-        overrideStatus={oilSt} />
-      <PartCallout position={[0.3, 0.7, -2.0]}
-        label="EGT" value={`${egtV}`} unit="°C"
-        rawValue={telemetry.egt} warnHigh={870} critHigh={910} />
-      <PartCallout position={[2.15, 0.5, -0.55]}
-        label="ENGINE SPEED" value={`${rpmV}`} unit="RPM"
-        rawValue={telemetry.rpm} warnHigh={5200} critHigh={5600} />
+      {/* ── 11. Live Parameter Callouts (Optional) ── */}
+      {showCallouts && (
+        <>
+          <PartCallout position={[-2.35, 0.45, 0.9]}
+            label="VIBRATION" value={vibV} unit="g RMS"
+            rawValue={telemetry.vibration} warnHigh={2.0} critHigh={3.0} />
+          <PartCallout position={[1.95, -0.65, 1.3]}
+            label="OIL PRESSURE" value={oilPSI} unit="PSI"
+            rawValue={telemetry.oil_pressure} warnLow={280} critLow={200}
+            overrideStatus={oilSt} />
+          <PartCallout position={[0.3, 0.7, -2.0]}
+            label="EGT" value={`${egtV}`} unit="°C"
+            rawValue={telemetry.egt} warnHigh={870} critHigh={910} />
+          <PartCallout position={[2.15, 0.5, -0.55]}
+            label="ENGINE SPEED" value={`${rpmV}`} unit="RPM"
+            rawValue={telemetry.rpm} warnHigh={5200} critHigh={5600} />
+        </>
+      )}
     </group>
   );
 };
@@ -658,6 +638,7 @@ const EngineModel3D = () => {
   const status     = diagnosis.status || 'Healthy';
   const [carbHovered, setCarbHovered] = useState(false);
   const [engineReady, setEngineReady] = useState(false);
+  const [showCallouts, setShowCallouts] = useState(false);
   const [showCTA, setShowCTA]         = useState(false);
   const orbitRef   = useRef();
 
@@ -719,7 +700,7 @@ const EngineModel3D = () => {
         }}
       >
         <AdaptiveDpr pixelated />
-        <PerspectiveCamera makeDefault position={[0, 8, 14]} fov={42} near={0.5} far={60} />
+        <PerspectiveCamera makeDefault position={[3.6, 2.0, 4.4]} fov={44} near={0.2} far={80} />
 
         {/* HDRI studio environment — no background, just lighting */}
         <Environment preset="studio" background={false} />
@@ -728,6 +709,7 @@ const EngineModel3D = () => {
           xrayMode={xrayMode}
           carbHovered={carbHovered}
           setEngineReady={setEngineReady}
+          showCallouts={showCallouts}
         />
 
         {/* Soft contact shadow under engine */}
@@ -740,7 +722,7 @@ const EngineModel3D = () => {
           color="#000820"
         />
 
-        {/* Cinematic camera rig */}
+        {/* Camera rig */}
         <CameraRig
           status={status}
           faultComponent={diagnosis.fault_component}
@@ -749,26 +731,27 @@ const EngineModel3D = () => {
 
         <OrbitControls
           ref={orbitRef}
-          enabled={false}          /* enabled=true once intro phase completes */
+          enabled={true}
           autoRotate
-          autoRotateSpeed={1.0}    /* ~15°/s at 60fps */
+          autoRotateSpeed={1.0}
           enableZoom
-          minDistance={3.5}
-          maxDistance={12}
+          minDistance={2.4}
+          maxDistance={9.5}
           maxPolarAngle={Math.PI / 1.65}
           dampingFactor={0.06}
           enableDamping
+          target={[0, 0, 0]}
         />
       </Canvas>
 
-      {/* ── Bottom status badge ── */}
+      {/* ── Bottom status badge with 3D pins toggle ── */}
       <div style={{
-        position: 'absolute', bottom: 12, left: 14, zIndex: 10, pointerEvents: 'none',
-        background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)',
-        border: '1px solid rgba(255,255,255,0.2)', color: '#E2E8F0',
-        fontSize: 10, fontWeight: 700, letterSpacing: '0.09em',
-        padding: '4px 12px', borderRadius: 99,
-        display: 'flex', alignItems: 'center', gap: 7,
+        position: 'absolute', bottom: 12, left: 14, zIndex: 10,
+        background: 'rgba(15,23,42,0.78)', backdropFilter: 'blur(8px)',
+        border: '1px solid rgba(255,255,255,0.18)', color: '#E2E8F0',
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+        padding: '5px 12px', borderRadius: 99,
+        display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <span style={{
           width: 6, height: 6, borderRadius: '50%',
@@ -777,7 +760,17 @@ const EngineModel3D = () => {
           animation: 'pulse 2s infinite',
           flexShrink: 0,
         }} />
-        3D DIGITAL TWIN · Drag to Orbit · Scroll to Zoom
+        <span>3D ROTAX 912 · Orbit / Zoom</span>
+        <button
+          onClick={() => setShowCallouts(!showCallouts)}
+          style={{
+            marginLeft: 4, padding: '2px 8px', borderRadius: 99,
+            background: showCallouts ? '#FF6B35' : 'rgba(255,255,255,0.15)',
+            color: 'white', fontSize: 9, fontWeight: 700, border: 'none', cursor: 'pointer',
+          }}
+        >
+          {showCallouts ? 'Pins: ON' : 'Pins: OFF'}
+        </button>
       </div>
 
       {/* ── Carb hover hotspot ── */}

@@ -261,7 +261,7 @@ export const useEngineStore = create((set, get) => {
     drawerOpen:        false,
     streamPaused:      false,
     selectedPart:      null,
-    engineRunning:     false,
+    engineRunning:     true,
 
     // UAV Phase
     uavPhase:          'standby', // standby | arming | running | fault
@@ -303,14 +303,17 @@ export const useEngineStore = create((set, get) => {
     setHeading: (v) => set({ heading: v }),
 
     // ── Startup Sequence ─────────────────────────────────────────────────
-    armUav: () => {
-      if (get().uavPhase !== 'standby') return;
+    startEngineStartup: (onComplete) => {
+      if (get().uavPhase === 'arming') return;
+      if (get().engineRunning) {
+        if (onComplete) onComplete();
+        return;
+      }
       set({ uavPhase: 'arming', startupStep: 0, rpmRamp: 0 });
 
       let step = 0;
       const runStep = () => {
         if (step >= STARTUP_STEPS.length) {
-          // Sequence complete → engine running
           const t = { ...PRESETS.nominal, engineLoad: 35 };
           const d = localDiagnose(t);
           const soh = computeSOH(t);
@@ -322,17 +325,21 @@ export const useEngineStore = create((set, get) => {
             history: seedHistory(t), maintenanceRecs: buildMaintenanceRecs(d, soh),
           });
           startMock();
+          if (onComplete) onComplete();
           return;
         }
         set({ startupStep: step });
-        // RPM ramp during steps 5-6
-        if (step >= 5) {
+        if (step >= 4) {
           set(s => ({ rpmRamp: Math.min(1800, s.rpmRamp + 450) }));
         }
         step++;
-        startupTimer = setTimeout(runStep, STARTUP_STEPS[step-1]?.duration ?? 800);
+        startupTimer = setTimeout(runStep, STARTUP_STEPS[step - 1]?.duration ?? 650);
       };
       runStep();
+    },
+
+    armUav: () => {
+      get().startEngineStartup();
     },
 
     emergencyStop: () => {
