@@ -14,6 +14,6 @@ echo.
 echo ===================================================
 echo   AeroTwin local execution started successfully!
 echo   - Backend API: http://localhost:3000/docs
-echo   - GCS HUD Panel: Check opened browser window
+echo   - GCS HUD Panel: http://localhost:5173
 echo ===================================================
 pause

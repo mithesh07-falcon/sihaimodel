@@ -1,6 +1,6 @@
-﻿// AeroTwin — Central API utility with self-contained local diagnostic engine
+// AeroTwin — Central API utility with self-contained local diagnostic engine and DL backend integration
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || null;
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const NOMINAL = {
   rpm: 4800, cht: 110, egt: 810, oil_pressure: 380,
@@ -141,9 +141,39 @@ export function localDiagnose(t) {
 export async function diagnose(telemetry) {
   if (BACKEND_URL) {
     try {
+      // Prefer high-fidelity 4-model Deep Learning diagnostic endpoint
+      const res = await fetch(`${BACKEND_URL}/api/dl/diagnose`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(telemetry), signal: AbortSignal.timeout(3000)
+      });
+      if (res.ok) {
+        const dlData = await res.json();
+        return {
+          ...dlData,
+          mission_reliability_score: dlData.health_score ?? 95,
+          maintenance_score: dlData.health_score ?? 90,
+          failure_probability_30d: Math.round((dlData.degradation_index ?? 0.05) * 1000) / 10
+        };
+      }
+    } catch { /* fall back to legacy diagnose */ }
+
+    try {
       const res = await fetch(`${BACKEND_URL}/api/diagnose`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(telemetry), signal: AbortSignal.timeout(3000)
+      });
+      if (res.ok) return await res.json();
+    } catch { /* fall through to local diagnose */ }
+  }
+  return localDiagnose(telemetry);
+}
+
+export async function diagnoseDL(telemetry) {
+  if (BACKEND_URL) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/dl/diagnose`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(telemetry), signal: AbortSignal.timeout(4000)
       });
       if (res.ok) return await res.json();
     } catch { /* fall through */ }
@@ -151,9 +181,19 @@ export async function diagnose(telemetry) {
   return localDiagnose(telemetry);
 }
 
-export function getWsUrl() {
-  if (BACKEND_URL) return BACKEND_URL.replace(/^http/, 'ws') + '/ws/telemetry';
+export async function getDLModelsInfo() {
+  if (BACKEND_URL) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/dl/models-info`);
+      if (res.ok) return await res.json();
+    } catch { /* fall through */ }
+  }
   return null;
 }
 
-export { NOMINAL };
+export function getWsUrl() {
+  if (BACKEND_URL) return BACKEND_URL.replace(/^http/, 'ws') + '/ws/telemetry';
+  return 'ws://localhost:3000/ws/telemetry';
+}
+
+export { NOMINAL, BACKEND_URL };

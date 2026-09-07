@@ -1,0 +1,187 @@
+{
+  "anomaly_detection": {
+    "model_name": "LSTM Autoencoder",
+    "task": "Anomaly Detection",
+    "training_time_s": 38.49,
+    "threshold": 0.207359,
+    "accuracy": 0.6116,
+    "precision": 0.7652,
+    "recall": 0.2733,
+    "f1": 0.4027,
+    "roc_auc": 0.7183,
+    "plot_path": "C:\\Users\\rupav\\OneDrive\\Desktop\\DigitalTwin\\backend\\app\\model\\dl_models\\artifacts\\anomaly_reconstruction_distribution.png"
+  },
+  "fault_identification": {
+    "model_name": "1D CNN",
+    "task": "Fault Identification",
+    "training_time_s": 31.18,
+    "accuracy": 0.8497,
+    "macro_f1": 0.8014,
+    "weighted_f1": 0.8475,
+    "classification_report": {
+      "NORMAL": {
+        "precision": 0.8659517426273459,
+        "recall": 0.9228571428571428,
+        "f1-score": 0.8934993084370678,
+        "support": 350.0
+      },
+      "BEARING_DEGRADATION": {
+        "precision": 1.0,
+        "recall": 0.8444444444444444,
+        "f1-score": 0.9156626506024096,
+        "support": 45.0
+      },
+      "PROPELLER_IMBALANCE": {
+        "precision": 1.0,
+        "recall": 0.94,
+        "f1-score": 0.9690721649484536,
+        "support": 50.0
+      },
+      "ENGINE_MISFIRE": {
+        "precision": 0.6410256410256411,
+        "recall": 0.7352941176470589,
+        "f1-score": 0.684931506849315,
+        "support": 34.0
+      },
+      "LOW_OIL_PRESSURE": {
+        "precision": 0.92,
+        "recall": 0.92,
+        "f1-score": 0.92,
+        "support": 50.0
+      },
+      "OVERHEATING": {
+        "precision": 0.8,
+        "recall": 0.6274509803921569,
+        "f1-score": 0.7032967032967034,
+        "support": 51.0
+      },
+      "COOLING_SYSTEM_FAILURE": {
+        "precision": 0.6176470588235294,
+        "recall": 0.5121951219512195,
+        "f1-score": 0.56,
+        "support": 41.0
+      },
+      "SENSOR_ANOMALY": {
+        "precision": 0.7647058823529411,
+        "recall": 0.7647058823529411,
+        "f1-score": 0.7647058823529411,
+        "support": 51.0
+      },
+      "accuracy": 0.8497023809523809,
+      "macro avg": {
+        "precision": 0.8261662906036822,
+        "recall": 0.7833684612056204,
+        "f1-score": 0.8013960270608613,
+        "support": 672.0
+      },
+      "weighted avg": {
+        "precision": 0.8497046296520946,
+        "recall": 0.8497023809523809,
+        "f1-score": 0.8474687330037401,
+        "support": 672.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        323,
+        0,
+        0,
+        5,
+        1,
+        4,
+        6,
+        11
+      ],
+      [
+        4,
+        38,
+        0,
+        1,
+        0,
+        0,
+        2,
+        0
+      ],
+      [
+        2,
+        0,
+        47,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        0,
+        0,
+        25,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0,
+        0,
+        46,
+        0,
+        0,
+        0
+      ],
+      [
+        14,
+        0,
+        0,
+        0,
+        0,
+        32,
+        4,
+        1
+      ],
+      [
+        13,
+        0,
+        0,
+        3,
+        0,
+        4,
+        21,
+        0
+      ],
+      [
+        4,
+        0,
+        0,
+        4,
+        3,
+        0,
+        1,
+        39
+      ]
+    ],
+    "plot_path": "C:\\Users\\rupav\\OneDrive\\Desktop\\DigitalTwin\\backend\\app\\model\\dl_models\\artifacts\\fault_cnn_confusion_matrix.png"
+  },
+  "degradation_prediction": {
+    "model_name": "BiLSTM + Attention",
+    "task": "Degradation Prediction",
+    "training_time_s": 49.8,
+    "mae": 0.05732,
+    "rmse": 0.11713,
+    "r2_score": 0.2625,
+    "plot_path": "C:\\Users\\rupav\\OneDrive\\Desktop\\DigitalTwin\\backend\\app\\model\\dl_models\\artifacts\\degradation_bilstm_scatter.png"
+  },
+  "rul_prediction": {
+    "model_name": "Temporal Fusion Transformer (TFT)",
+    "task": "RUL Prediction",
+    "training_time_s": 26.85,
+    "mae_hours": 0.11,
+    "rmse_hours": 0.19,
+    "mape_percent": 8.93,
+    "r2_score": 0.9083,
+    "plot_path": "C:\\Users\\rupav\\OneDrive\\Desktop\\DigitalTwin\\backend\\app\\model\\dl_models\\artifacts\\rul_tft_scatter.png"
+  }
+}
