@@ -435,6 +435,7 @@ def health_check():
 # ==============================================================================
 
 @app.post("/api/telemetry/ingest")
+@app.post("/api/telemetry")
 async def ingest_telemetry_webhook(payload: Dict[str, Any] = Body(...)):
     """
     PRIMARY INGESTION ENDPOINT:

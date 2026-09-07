@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import {
   diagnose, getWsUrl, localDiagnose, NOMINAL,
   ingestTelemetry, getStreamStatus, testExternalConnection,
-  configurePullStream, resetStream, BACKEND_URL
+  configurePullStream, resetStream, fetchVercelLiveTelemetry, BACKEND_URL
 } from '../lib/api';
 
 // ─── Fault Presets ─────────────────────────────────────────────────────────
@@ -226,6 +226,7 @@ export const useEngineStore = create((set, get) => {
     telemetry:         initT,
     preset:            'nominal',
     diagnosis:         initD,
+    diagnosisLoading:     false,
     soh:               initSOH,
     physicsExpected:   initPhysics,
     history:           seedHistory(initT),
@@ -253,6 +254,7 @@ export const useEngineStore = create((set, get) => {
     activeFault:            null,
     faultPropagationLog:    [],
     faultPropagating:       false,
+    propagationTimers:      [],
 
     setDrawerOpen:    v => set({ drawerOpen: v }),
     setSelectedPart:  p => set({ selectedPart: p }),
@@ -320,13 +322,16 @@ export const useEngineStore = create((set, get) => {
 
     emergencyStop: () => {
       if (startupTimer) clearTimeout(startupTimer);
+      const { propagationTimers } = get();
+      propagationTimers.forEach(timer => clearTimeout(timer));
+
       const t = { ...PRESETS.nominal, engineLoad: 0 };
       set({
         uavPhase: 'standby', startupStep: -1,
         engineRunning: false, rpmRamp: 0, throttle: 0,
         telemetry: t, diagnosis: localDiagnose(t),
         soh: computeSOH(t), physicsExpected: computePhysicsExpected(t),
-        activeFault: null, faultPropagationLog: [], faultPropagating: false,
+        activeFault: null, faultPropagationLog: [], faultPropagating: false, propagationTimers: [],
         history: seedHistory(t), maintenanceRecs: buildMaintenanceRecs(localDiagnose(t), computeSOH(t)),
       });
     },
@@ -351,18 +356,27 @@ export const useEngineStore = create((set, get) => {
 
     // ── Fault Injection ───────────────────────────────────────────────────
     injectFault: (faultKey) => {
+      // 1. Clear existing propagation timers to prevent state corruption
+      const { propagationTimers } = get();
+      propagationTimers.forEach(timer => clearTimeout(timer));
+
       const faultTelemetry = PRESETS[faultKey] || PRESETS.nominal;
       const steps = FAULT_PROPAGATION[faultKey] || [];
-      set({ activeFault: faultKey, faultPropagationLog: [], faultPropagating: true, uavPhase: 'fault' });
+
+      // Reset state and clear log
+      set({ activeFault: faultKey, faultPropagationLog: [], faultPropagating: true, uavPhase: 'fault', propagationTimers: [] });
+
+      const newTimers = [];
 
       steps.forEach(({ step, delay }) => {
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           set(s => ({ faultPropagationLog: [...s.faultPropagationLog, step] }));
           if (delay >= (steps[steps.length-1]?.delay ?? 0)) set({ faultPropagating: false });
         }, delay);
+        newTimers.push(timer);
       });
 
-      setTimeout(() => {
+      const finalTimer = setTimeout(() => {
         const t = { ...faultTelemetry, engineLoad: get().telemetry.engineLoad ?? 62 };
         const d = localDiagnose(t); const soh = computeSOH(t);
         const thr = get().thresholds;
@@ -372,14 +386,20 @@ export const useEngineStore = create((set, get) => {
           tasks: buildTasks(d), history: seedHistory(t),
         });
       }, 1400);
+      newTimers.push(finalTimer);
+
+      set({ propagationTimers: newTimers });
     },
 
     resetFault: () => {
+      const { propagationTimers } = get();
+      propagationTimers.forEach(timer => clearTimeout(timer));
+
       const t = { ...PRESETS.nominal, engineLoad: 62 };
       const d = localDiagnose(t); const soh = computeSOH(t);
       const thr = get().thresholds;
       set({
-        activeFault: null, faultPropagationLog: [], faultPropagating: false,
+        activeFault: null, faultPropagationLog: [], faultPropagating: false, propagationTimers: [],
         uavPhase: get().engineRunning ? 'running' : 'standby',
         preset: 'nominal', telemetry: t, diagnosis: d, soh,
         physicsExpected: computePhysicsExpected(t),
@@ -403,27 +423,40 @@ export const useEngineStore = create((set, get) => {
       const t = PRESETS[name] || PRESETS.nominal;
       const tl = { ...t, engineLoad:62 };
       const d=localDiagnose(tl); const soh=computeSOH(tl); const thr=get().thresholds;
-      set({ preset:name, telemetry:tl, diagnosis:d, soh, physicsExpected:computePhysicsExpected(tl),
+
+      set({
+        preset:name, telemetry:tl, diagnosis:d, diagnosisLoading: true, soh,
+        physicsExpected:computePhysicsExpected(tl),
         history:seedHistory(tl), alerts:buildAlerts(tl,d,thr), maintenanceRecs:buildMaintenanceRecs(d,soh),
-        tasks:buildTasks(d), unreadCount:buildAlerts(tl,d,thr).filter(a=>!a.read).length });
+        tasks:buildTasks(d), unreadCount:buildAlerts(tl,d,thr).filter(a=>!a.read).length
+      });
+
       diagnose(tl).then(d2=>{
         const na=buildAlerts(tl,d2,get().thresholds);
-        set({ diagnosis:d2, alerts:na, unreadCount:na.filter(a=>!a.read).length });
-      }).catch(()=>{});
+        set({ diagnosis:d2, diagnosisLoading: false, alerts:na, unreadCount:na.filter(a=>!a.read).length });
+      }).catch(err => {
+        console.error('Remote diagnosis failed during preset change:', err);
+        set({ diagnosisLoading: false });
+      });
     },
 
     runDiagnosis: async (t) => {
-      set({ telemetry:t });
+      set({ telemetry:t, diagnosisLoading: true });
       const d=await diagnose(t); const soh=computeSOH(t); const thr=get().thresholds;
       const na=buildAlerts(t,d,thr);
-      set({ diagnosis:d, soh, physicsExpected:computePhysicsExpected(t),
+      set({ diagnosis:d, diagnosisLoading: false, soh, physicsExpected:computePhysicsExpected(t),
         history:seedHistory(t), alerts:na, tasks:buildTasks(d),
         maintenanceRecs:buildMaintenanceRecs(d,soh), unreadCount:na.filter(a=>!a.read).length });
     },
 
     setTelemetryValue: (key,val) => {
+      const parsedVal = parseFloat(val);
+      if (isNaN(parsedVal)) {
+        console.warn(`Invalid telemetry value provided for ${key}: ${val}`);
+        return;
+      }
       set(s => {
-        const next={...s.telemetry,[key]:parseFloat(val)};
+        const next={...s.telemetry,[key]:parsedVal};
         const d=localDiagnose(next); const soh=computeSOH(next);
         diagnose(next).then(d2=>set({diagnosis:d2})).catch(()=>{});
         return { telemetry:next, diagnosis:d, soh, physicsExpected:computePhysicsExpected(next) };
@@ -507,6 +540,7 @@ export const useEngineStore = create((set, get) => {
               }
             } catch (err) {
               console.error("WS Parse error:", err);
+              alert(`WebSocket Data Error: ${err.message}. The incoming telemetry stream may be malformed.`);
             }
           };
           ws.onclose = () => {
@@ -539,8 +573,40 @@ export const useEngineStore = create((set, get) => {
             pullActive: res.pull_worker_active,
             pullUrl: res.pull_url || ''
           });
+          return res;
         }
-        return res;
+
+        // Fallback: Check Vercel serverless function /api/telemetry
+        const vercelRes = await fetchVercelLiveTelemetry();
+        if (vercelRes && vercelRes.telemetry) {
+          const next = vercelRes.telemetry;
+          const d = localDiagnose(next);
+          const soh = computeSOH(next);
+          const thr = get().thresholds;
+          const na = buildAlerts(next, d, thr);
+          set(s => ({
+            streamConnected: vercelRes.stream_active ?? true,
+            packetsReceived: vercelRes.packets_received || s.packetsReceived,
+            lastPacketTime: vercelRes.last_packet_time || new Date().toISOString(),
+            sourceType: 'virtualengine_vercel',
+            telemetry: { ...s.telemetry, ...next },
+            diagnosis: d,
+            soh,
+            physicsExpected: computePhysicsExpected(next),
+            alerts: na,
+            history: [
+              ...s.history,
+              {
+                time: new Date().toLocaleTimeString(),
+                ...next,
+                health_score: soh.overall,
+                anomaly_score: soh.anomalyScore
+              }
+            ].slice(-80)
+          }));
+          return vercelRes;
+        }
+        return null;
       } catch (e) {
         return null;
       }
@@ -579,7 +645,7 @@ export const useEngineStore = create((set, get) => {
     },
 
     setPullConfiguration: async (enabled, url, interval = 1.0) => {
-      const res = await configurePullStream(enabled, url, interval);
+      const res = await configurePullStream({ enabled, url, interval_s: interval });
       set({ pullActive: enabled, pullUrl: url });
       get().refreshStreamStatus();
       return res;

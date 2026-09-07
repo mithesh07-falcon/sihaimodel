@@ -1,6 +1,7 @@
 // AeroTwin — Central API utility with self-contained local diagnostic engine and DL backend integration
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app') ? '' : 'http://localhost:3000');
 
 const NOMINAL = {
   rpm: 4800, cht: 110, egt: 810, oil_pressure: 380,
@@ -155,7 +156,9 @@ export async function diagnose(telemetry) {
           failure_probability_30d: Math.round((dlData.degradation_index ?? 0.05) * 1000) / 10
         };
       }
-    } catch { /* fall back to legacy diagnose */ }
+    } catch (e) {
+      console.error('Remote diagnosis failed, falling back to local engine:', e);
+    }
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/diagnose`, {
@@ -163,7 +166,9 @@ export async function diagnose(telemetry) {
         body: JSON.stringify(telemetry), signal: AbortSignal.timeout(3000)
       });
       if (res.ok) return await res.json();
-    } catch { /* fall through to local diagnose */ }
+    } catch (e) {
+      console.error('Remote diagnosis failed, falling through to local diagnose:', e);
+    }
   }
   return localDiagnose(telemetry);
 }
@@ -176,7 +181,9 @@ export async function diagnoseDL(telemetry) {
         body: JSON.stringify(telemetry), signal: AbortSignal.timeout(4000)
       });
       if (res.ok) return await res.json();
-    } catch { /* fall through */ }
+    } catch (e) {
+      console.error('DL diagnose failed, falling through to local diagnose:', e);
+    }
   }
   return localDiagnose(telemetry);
 }
@@ -186,7 +193,9 @@ export async function getDLModelsInfo() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/dl/models-info`);
       if (res.ok) return await res.json();
-    } catch { /* fall through */ }
+    } catch (e) {
+      console.error('API call failed during fallback:', e);
+    }
   }
   return null;
 }
@@ -211,7 +220,9 @@ export async function getStreamStatus() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/stream/status`);
       if (res.ok) return await res.json();
-    } catch { /* fall through */ }
+    } catch (e) {
+      console.error('API call failed during fallback:', e);
+    }
   }
   return { is_connected: false, packets_received: 0, ingestion_rate_hz: 0 };
 }
@@ -251,7 +262,19 @@ export async function resetStream() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/telemetry/reset`, { method: 'POST' });
       if (res.ok) return await res.json();
-    } catch { /* fall through */ }
+    } catch (e) {
+      console.error('API call failed during fallback:', e);
+    }
+  }
+  return null;
+}
+
+export async function fetchVercelLiveTelemetry() {
+  try {
+    const res = await fetch('/api/telemetry');
+    if (res.ok) return await res.json();
+  } catch (e) {
+    // ignore
   }
   return null;
 }
