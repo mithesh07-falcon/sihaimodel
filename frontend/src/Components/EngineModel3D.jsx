@@ -18,7 +18,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, ContactShadows, Environment } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera, ContactShadows, Html } from '@react-three/drei';
 import { useEngineStore } from '../store/useEngineStore';
 import {
   rpmToSpeed, thermalTarget, thermalIntensity,
@@ -127,12 +127,127 @@ const CylinderUnit = React.memo(({
   );
 });
 
+// ─── 3D Sensor Pin Attached Directly to Mechanical Parts ───────────────────
+const SensorPin = ({
+  position,
+  label,
+  value,
+  unit,
+  partKey,
+  status = 'nominal',
+  isSelected,
+  onSelect,
+}) => {
+  const isWarn = status === 'warning';
+  const isCrit = status === 'critical';
+  const beaconColor = isCrit ? '#EF4444' : isWarn ? '#F59E0B' : '#FF6B35';
+
+  return (
+    <group position={position}>
+      {/* 3D Pointer Stem Needle */}
+      <mesh position={[0, -0.07, 0]}>
+        <cylinderGeometry args={[0.015, 0.005, 0.14, 8]} />
+        <meshBasicMaterial color={beaconColor} />
+      </mesh>
+
+      {/* 3D Luminous Sphere Beacon */}
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[0.045, 16, 16]} />
+        <meshBasicMaterial color={beaconColor} />
+      </mesh>
+
+      {/* Outer Pulse Halo */}
+      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.06, 0.088, 20]} />
+        <meshBasicMaterial color={beaconColor} transparent opacity={0.5} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Embedded 2D HTML Badge that tracks 3D Position */}
+      <Html
+        position={[0, 0.22, 0]}
+        distanceFactor={7.5}
+        center
+        className="pointer-events-auto select-none"
+      >
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(partKey);
+          }}
+          className={`cursor-pointer group flex items-center gap-1.5 px-2.5 py-1 rounded-xl shadow-lg border transition-all duration-200 backdrop-blur-md ${
+            isSelected
+              ? 'bg-orange-500 text-white border-orange-400 ring-2 ring-orange-300/80 scale-105'
+              : isCrit
+              ? 'bg-red-50/95 text-red-950 border-red-400 hover:border-red-600 shadow-red-500/20'
+              : isWarn
+              ? 'bg-amber-50/95 text-amber-950 border-amber-400 hover:border-amber-600 shadow-amber-500/20'
+              : 'bg-white/95 text-gray-900 border-gray-200/90 hover:border-orange-500 hover:shadow-orange-500/15'
+          }`}
+          style={{ whiteSpace: 'nowrap' }}
+          title={`Click to inspect ${label}`}
+        >
+          {/* Status Indicator Dot */}
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              isCrit
+                ? 'bg-red-500 animate-ping'
+                : isWarn
+                ? 'bg-amber-500 animate-pulse'
+                : isSelected
+                ? 'bg-white animate-pulse'
+                : 'bg-orange-500'
+            }`}
+          />
+          <div className="flex flex-col text-left leading-none">
+            <span
+              className={`text-[8px] font-black uppercase tracking-wider ${
+                isSelected ? 'text-orange-100' : 'text-gray-400'
+              }`}
+            >
+              {label}
+            </span>
+            <div className="flex items-baseline gap-0.5 mt-0.5">
+              <span
+                className={`font-mono text-[11px] font-black ${
+                  isSelected ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {value}
+              </span>
+              {unit && (
+                <span
+                  className={`text-[9px] font-bold ${
+                    isSelected ? 'text-orange-200' : 'text-gray-500'
+                  }`}
+                >
+                  {unit}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </Html>
+    </group>
+  );
+};
+
 // ─── Main Rotax 912 Engine 3D Model ─────────────────────────────────────────
-const Rotax912Assembly = () => {
+const Rotax912Assembly = ({ showPins = true }) => {
   const telemetry = useEngineStore((s) => s.telemetry);
   const diagnosis = useEngineStore((s) => s.diagnosis);
   const selectedPart = useEngineStore((s) => s.selectedPart);
   const setSelectedPart = useEngineStore((s) => s.setSelectedPart);
+
+  const rpm = Math.round(telemetry?.rpm ?? 0);
+  const propRpm = Math.round(rpm / 2.43);
+  const cht = telemetry?.cht != null ? Number(telemetry.cht).toFixed(1) : '110.0';
+  const cht2 = telemetry?.cht != null ? (Number(telemetry.cht) + 1.2).toFixed(1) : '111.2';
+  const egt = telemetry?.egt != null ? Math.round(telemetry.egt) : 810;
+  const rawOp = telemetry?.oil_pressure ?? 380;
+  const oilP = (rawOp > 0 && rawOp < 25) ? Number(rawOp).toFixed(1) : (rawOp / 100).toFixed(1);
+  const oilT = telemetry?.oil_temp != null ? Math.round(telemetry.oil_temp) : 92;
+  const fuelFlow = telemetry?.fuel_flow != null ? Number(telemetry.fuel_flow).toFixed(1) : '18.2';
+  const vib = telemetry?.vibration != null ? Number(telemetry.vibration).toFixed(2) : (telemetry?.vibration_rms != null ? Number(telemetry.vibration_rms).toFixed(2) : '0.85');
 
   const groupRef    = useRef();
   const crankRef    = useRef();
@@ -460,12 +575,101 @@ const Rotax912Assembly = () => {
           <meshPhysicalMaterial {...pm(MAT_HOSE_COOL)} />
         </mesh>
       </group>
+
+      {/* ── 9. REAL-TIME 3D SENSOR PINS ON ENGINE PARTS ── */}
+      {showPins && (
+        <group>
+          {/* PSRU Gearbox & Propeller Shaft Pin */}
+          <SensorPin
+            position={[0, 0.72, 1.45]}
+            label="PSRU 2.43:1"
+            value={propRpm.toLocaleString()}
+            unit="RPM"
+            partKey="gearbox"
+            status="nominal"
+            isSelected={selectedPart === 'gearbox'}
+            onSelect={setSelectedPart}
+          />
+
+          {/* Dual BING 64 Carburetors Pin */}
+          <SensorPin
+            position={[0, 1.48, 0.15]}
+            label="BING 64 Carbs"
+            value={fuelFlow}
+            unit="L/h"
+            partKey="fuel_system"
+            status={Number(fuelFlow) > 24 || Number(fuelFlow) < 12 ? 'warning' : 'nominal'}
+            isSelected={selectedPart === 'fuel_system'}
+            onSelect={setSelectedPart}
+          />
+
+          {/* Cylinder Bank 1 & 3 Left Head (CHT) */}
+          <SensorPin
+            position={[-1.75, 0.55, 0.55]}
+            label="Cyl 1/3 CHT"
+            value={cht}
+            unit="°C"
+            partKey="cylinders"
+            status={Number(cht) >= 145 ? 'critical' : Number(cht) >= 130 ? 'warning' : 'nominal'}
+            isSelected={selectedPart === 'cylinders'}
+            onSelect={setSelectedPart}
+          />
+
+          {/* Cylinder Bank 2 & 4 Right Head (CHT) */}
+          <SensorPin
+            position={[1.75, 0.55, -0.55]}
+            label="Cyl 2/4 CHT"
+            value={cht2}
+            unit="°C"
+            partKey="cylinders"
+            status={Number(cht2) >= 145 ? 'critical' : Number(cht2) >= 130 ? 'warning' : 'nominal'}
+            isSelected={selectedPart === 'cylinders'}
+            onSelect={setSelectedPart}
+          />
+
+          {/* Tuned Stainless Exhaust Collector (EGT) */}
+          <SensorPin
+            position={[0, -1.25, -0.9]}
+            label="Exhaust EGT"
+            value={egt}
+            unit="°C"
+            partKey="exhaust"
+            status={Number(egt) >= 910 ? 'critical' : Number(egt) >= 870 ? 'warning' : 'nominal'}
+            isSelected={selectedPart === 'exhaust'}
+            onSelect={setSelectedPart}
+          />
+
+          {/* Crankcase & Lubrication System (Oil P & T) */}
+          <SensorPin
+            position={[0.95, -0.75, 0.2]}
+            label="Oil System"
+            value={`${oilP} bar · ${oilT}°C`}
+            partKey="crankcase"
+            status={Number(oilP) < 2.0 || Number(oilT) > 125 ? 'critical' : Number(oilP) < 2.8 || Number(oilT) > 110 ? 'warning' : 'nominal'}
+            isSelected={selectedPart === 'crankcase'}
+            onSelect={setSelectedPart}
+          />
+
+          {/* Vibration Sensor on Engine Mount */}
+          <SensorPin
+            position={[-0.95, -0.45, 0.95]}
+            label="Vib Sensor"
+            value={vib}
+            unit="g"
+            partKey="crankcase"
+            status={Number(vib) >= 2.8 ? 'critical' : Number(vib) >= 1.8 ? 'warning' : 'nominal'}
+            isSelected={selectedPart === 'crankcase'}
+            onSelect={setSelectedPart}
+          />
+        </group>
+      )}
     </group>
   );
 };
 
 // ─── Exported Master 3D Component with Studio Lighting & Overlay ────────────
 const EngineModel3D = () => {
+  const [showPins, setShowPins] = useState(true);
   const telemetry = useEngineStore((s) => s.telemetry);
   const diagnosis = useEngineStore((s) => s.diagnosis);
   const streamConnected = useEngineStore((s) => s.streamConnected);
@@ -513,7 +717,7 @@ const EngineModel3D = () => {
         <directionalLight position={[0, -4, 5]} intensity={0.4} color="#E0F2FE" />
 
         {/* Rotax 912 Complete Assembly */}
-        <Rotax912Assembly />
+        <Rotax912Assembly showPins={showPins} />
 
         {/* Clean studio contact shadow on floor plane */}
         <ContactShadows
@@ -562,28 +766,48 @@ const EngineModel3D = () => {
         </div>
       </div>
 
-      {/* ── Top-Right Technical Part Inspector ── */}
-      {selectedPart && (
-        <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-orange-200 shadow-md flex flex-col gap-1 max-w-[240px]">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-orange-600">INSPECTED COMPONENT</span>
-            <button
-              onClick={() => setSelectedPart(null)}
-              className="text-gray-400 hover:text-gray-600 text-xs font-bold px-1"
-            >
-              ✕
-            </button>
+      {/* ── Top-Right Controls & Technical Part Inspector ── */}
+      <div className="absolute top-4 right-4 z-20 flex flex-col items-end gap-2.5">
+        {/* Interactive ON/OFF Button for 3D Sensor Pins */}
+        <button
+          id="engine-pins-toggle-btn"
+          onClick={() => setShowPins((prev) => !prev)}
+          className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md backdrop-blur-md cursor-pointer border select-none ${
+            showPins
+              ? 'bg-orange-500 text-white border-orange-400 shadow-orange-500/25 ring-2 ring-orange-400/30'
+              : 'bg-white/95 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-orange-300'
+          }`}
+          title="Toggle Real-Time Sensor Pins directly on 3D Engine parts"
+        >
+          <span className={`w-2.5 h-2.5 rounded-full ${showPins ? 'bg-white animate-pulse' : 'bg-gray-400'}`} />
+          <span className="tracking-wide uppercase font-black text-[11px]">
+            Sensor Pins: {showPins ? 'ON' : 'OFF'}
+          </span>
+        </button>
+
+        {/* Selected Part Technical Inspector Card */}
+        {selectedPart && (
+          <div className="bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-orange-200 shadow-lg flex flex-col gap-1 max-w-[250px] animate-in fade-in duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-orange-600">INSPECTED COMPONENT</span>
+              <button
+                onClick={() => setSelectedPart(null)}
+                className="text-gray-400 hover:text-gray-600 text-xs font-bold px-1 rounded-md hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm font-black text-gray-900 capitalize">{selectedPart.replace('_', ' ')}</p>
+            <p className="text-[11px] text-gray-600 leading-snug">
+              {selectedPart === 'gearbox' && 'Propeller Speed Reduction Unit (PSRU) with integrated dog clutch, ratio 2.43:1.'}
+              {selectedPart === 'fuel_system' && 'Dual BING 64 Constant Velocity Carburetors with automatic altitude compensating diaphragm.'}
+              {selectedPart === 'cylinders' && 'Liquid-cooled cylinder heads and air-cooled finned steel cylinder barrels.'}
+              {selectedPart === 'exhaust' && 'Tuned 4-into-1 stainless steel exhaust collector manifold with EGT monitoring.'}
+              {selectedPart === 'crankcase' && 'Cast aluminum alloy horizontally split crankcase with dry-sump forced lubrication.'}
+            </p>
           </div>
-          <p className="text-sm font-black text-gray-900 capitalize">{selectedPart.replace('_', ' ')}</p>
-          <p className="text-[11px] text-gray-500 leading-tight">
-            {selectedPart === 'gearbox' && 'Propeller Speed Reduction Unit (PSRU) with integrated dog clutch, ratio 2.43:1.'}
-            {selectedPart === 'fuel_system' && 'Dual BING 64 Constant Velocity Carburetors with automatic altitude compensating diaphragm.'}
-            {selectedPart === 'cylinders' && 'Liquid-cooled cylinder heads and air-cooled finned steel cylinder barrels.'}
-            {selectedPart === 'exhaust' && 'Tuned 4-into-1 stainless steel exhaust collector manifold with EGT monitoring.'}
-            {selectedPart === 'crankcase' && 'Cast aluminum alloy horizontally split crankcase with dry-sump forced lubrication.'}
-          </p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Bottom Controls & Camera Hint ── */}
       <div className="absolute bottom-3 left-3 z-20 font-mono text-[9.5px] text-gray-500 bg-white/90 backdrop-blur-md border border-gray-200 px-3 py-2 rounded-xl flex items-center gap-4 shadow-xs">
@@ -593,7 +817,7 @@ const EngineModel3D = () => {
         </div>
         <span>• Left Click + Drag to rotate</span>
         <span>• Scroll to zoom</span>
-        <span>• Click parts to inspect</span>
+        <span>• Click parts or pins to inspect</span>
       </div>
     </div>
   );

@@ -328,7 +328,10 @@ export async function resetStream() {
 
 export async function fetchVercelLiveTelemetry() {
   try {
-    const res = await fetch('/api/telemetry');
+    const res = await fetch('/api/telemetry', {
+      signal: AbortSignal.timeout(2200),
+      cache: 'no-store'
+    });
     if (res.ok) return await res.json();
   } catch (e) {
     // ignore

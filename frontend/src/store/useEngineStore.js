@@ -59,9 +59,9 @@ function computePhysicsExpected(telemetry) {
   };
 }
 
-// ─── SOH Scoring ───────────────────────────────────────────────────────────
+// ─── SOH Scoring (Dynamic & Reactive to actual telemetry conditions) ────────
 function computeSOH(rawT) {
-  if (!rawT || !rawT.engine_on || (rawT.rpm != null && rawT.rpm < 100)) {
+  if (!rawT) {
     return {
       oilScore: 0, thermalScore: 0, vibScore: 0, rpmScore: 0, fuelScore: 0,
       overall: 0, anomalyScore: 0, degradation: 0
@@ -69,17 +69,42 @@ function computeSOH(rawT) {
   }
   const oil_pressure = (rawT.oil_pressure > 0 && rawT.oil_pressure < 25) ? rawT.oil_pressure * 100 : (rawT.oil_pressure || 380);
   const t = { ...rawT, oil_pressure };
-  const oilScore = Math.round(Math.max(0, Math.min(100,
-    ((t.oil_pressure/380)*0.6 + (1-Math.max(0,((t.oil_temp || 92)-92)/40))*0.4)*100)));
-  const thermalScore = Math.round(Math.max(0, 100 - Math.max(0,((t.cht || 110)-110)/30)*50 - Math.max(0,((t.egt || 810)-810)/100)*30));
-  const vibScore = Math.round(Math.max(0, 100 - Math.max(0,((t.vibration || 1.1)-1.1)/2.9)*100));
-  const rpmScore = Math.round(Math.max(0, 100 - Math.abs((t.rpm || 4800)-4800)/1200*60));
-  const fuelScore = Math.round(Math.max(0, 100 - Math.abs((t.fuel_flow || 18.5)-18.5)/10*40 - Math.abs(((t.afr??14.7)-14.7)/3*30)));
-  const overall = Math.round(oilScore*0.30 + thermalScore*0.20 + vibScore*0.20 + rpmScore*0.15 + fuelScore*0.15);
+
+  // 1. Oil subsystem health (nominal 380 kPa / 3.8 bar, oil temp nominal 90-95°C)
+  const op = t.oil_pressure || 380;
+  const ot = t.oil_temp ?? t.oil_temperature ?? 92;
+  const opScore = op >= 340 ? 100 : op <= 200 ? 15 : Math.max(20, Math.round(30 + ((op - 200) / 140) * 70));
+  const otScore = ot <= 98 ? 100 : ot >= 120 ? 15 : Math.max(20, Math.round(100 - ((ot - 98) / 22) * 80));
+  const oilScore = Math.round(opScore * 0.6 + otScore * 0.4);
+
+  // 2. Thermal subsystem health (CHT nominal 100-115°C, EGT nominal 780-820°C)
+  const cht = t.cht || 110;
+  const egt = t.egt || 810;
+  const chtScore = cht <= 116 ? 100 : cht >= 140 ? 10 : Math.max(15, Math.round(100 - ((cht - 116) / 24) * 85));
+  const egtScore = egt <= 830 ? 100 : egt >= 920 ? 15 : Math.max(20, Math.round(100 - ((egt - 830) / 90) * 80));
+  const thermalScore = Math.round(chtScore * 0.6 + egtScore * 0.4);
+
+  // 3. Vibration subsystem health (nominal 0.6 - 1.2 g, warning > 1.8g, critical > 2.8g)
+  const vib = t.vibration ?? t.vibration_rms ?? 1.0;
+  const vibScore = vib <= 1.3 ? 100 : vib >= 3.0 ? 10 : Math.max(15, Math.round(100 - ((vib - 1.3) / 1.7) * 85));
+
+  // 4. Fuel delivery & AFR (nominal 15-22 L/h, AFR 14.7)
+  const ff = t.fuel_flow || 18.2;
+  const afr = t.afr || 14.7;
+  const ffScore = (ff >= 14 && ff <= 24) ? 100 : Math.max(40, Math.round(100 - Math.abs(ff - 18.5) * 5));
+  const afrScore = Math.abs(afr - 14.7) <= 0.8 ? 100 : Math.max(35, Math.round(100 - Math.abs(afr - 14.7) * 20));
+  const fuelScore = Math.round(ffScore * 0.7 + afrScore * 0.3);
+
+  // 5. Engine RPM / Performance
+  const rpm = t.rpm || 0;
+  const rpmScore = (rpm >= 3200 && rpm <= 5500) ? 100 : (rpm > 5500 ? Math.max(30, 100 - (rpm - 5500) * 0.12) : 95);
+
+  const overall = Math.round(oilScore * 0.30 + thermalScore * 0.30 + vibScore * 0.25 + fuelScore * 0.10 + rpmScore * 0.05);
+  const anomalyScore = Math.max(0, Math.min(100, 100 - overall));
+
   return {
     oilScore, thermalScore, vibScore, rpmScore, fuelScore,
-    overall, anomalyScore: Math.round(Math.max(0, Math.min(100, 100-overall))),
-    degradation: Math.round(Math.max(0, 100-overall))
+    overall, anomalyScore, degradation: Math.round(anomalyScore * 0.38)
   };
 }
 
@@ -254,6 +279,7 @@ export const useEngineStore = create((set, get) => {
     streamConnected:   false,
     packetsReceived:   0,
     ingestionRateHz:   0,
+    pingMs:            35,
     lastPacketTime:    null,
     sourceType:        'none', // 'push_webhook' | 'pull_rest' | 'none'
     pullActive:        false,
@@ -602,8 +628,10 @@ export const useEngineStore = create((set, get) => {
     refreshStreamStatus: async () => {
       if (isPolling) return null;
       isPolling = true;
+      const t0 = performance.now();
       try {
         const res = await getStreamStatus();
+        const pingMs = Math.max(12, Math.round(performance.now() - t0));
         if (!res) return null;
 
         const isLive = Boolean(res.stream_active);
@@ -622,6 +650,7 @@ export const useEngineStore = create((set, get) => {
             streamConnected: true,
             engineRunning: isEngineActive,
             ingestionRateHz: res.ingestion_rate_hz || 1.0,
+            pingMs,
             packetsReceived: res.packets_received || (s.packetsReceived + 1),
             lastPacketTime: res.last_packet_time || new Date().toISOString(),
             sourceType: res.source_type || 'virtualengine_vercel',

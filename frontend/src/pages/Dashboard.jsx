@@ -55,8 +55,24 @@ const Dashboard = () => {
 
   // Real stream status detection
   const hasStream = streamConnected && Boolean(telemetry);
-  const healthScore = hasStream && soh?.overall != null && soh.overall > 0 ? soh.overall : (hasStream ? 98 : null);
-  const isHealthy = hasStream && (diagnosis.status === 'Healthy' || diagnosis.status === 'nominal' || !diagnosis.anomaly_detected);
+  
+  // Dynamic SOH Health evaluation directly responsive to live sensor conditions
+  const healthScore = hasStream && soh?.overall != null ? soh.overall : (hasStream ? 96 : null);
+  const isCritical = hasStream && (healthScore < 72 || diagnosis.status === 'Critical');
+  const isWarning = hasStream && !isCritical && (healthScore < 88 || diagnosis.status === 'Warning');
+  const isHealthy = hasStream && !isCritical && !isWarning;
+  
+  const statusDisplay = hasStream 
+    ? (isCritical ? 'Critical' : isWarning ? 'Warning' : 'Healthy')
+    : 'Standby';
+    
+  const statusDetail = hasStream
+    ? (isCritical 
+        ? (diagnosis.fault_component || 'Critical System Deviation') 
+        : isWarning 
+        ? (diagnosis.fault_component || 'Subsystem Degradation') 
+        : 'Nominal performance')
+    : 'Awaiting stream from virtual engine';
 
   // Exact synchronized values matching virtualengine.vercel.app
   const rpmValue = hasStream && telemetry.rpm != null ? Math.round(telemetry.rpm) : '--';
@@ -189,18 +205,34 @@ const Dashboard = () => {
         {/* Card 1: Engine Status */}
         <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs hover:border-orange-200 hover:shadow-sm transition-all flex flex-col justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-orange-50 text-orange-500 border border-orange-100 shrink-0">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shrink-0 ${
+              !hasStream
+                ? 'bg-gray-50 border-gray-100 text-gray-400'
+                : isCritical
+                ? 'bg-red-50 border-red-200 text-red-600 animate-pulse'
+                : isWarning
+                ? 'bg-amber-50 border-amber-200 text-amber-600'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+            }`}>
               <ShieldCheck size={22} strokeWidth={2.2} />
             </div>
             <div>
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Engine Status</p>
-              <h3 className="text-lg font-black text-gray-900 leading-tight uppercase">
-                {hasStream ? (isHealthy ? 'Healthy' : diagnosis.status) : 'Standby'}
+              <h3 className={`text-lg font-black leading-tight uppercase ${
+                !hasStream
+                  ? 'text-gray-500'
+                  : isCritical
+                  ? 'text-red-600'
+                  : isWarning
+                  ? 'text-amber-600'
+                  : 'text-emerald-600'
+              }`}>
+                {statusDisplay}
               </h3>
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-3 font-medium truncate">
-            {hasStream ? (isHealthy ? 'Nominal performance' : diagnosis.fault_component) : 'Awaiting stream from virtual engine'}
+            {statusDetail}
           </p>
         </div>
 
@@ -213,7 +245,7 @@ const Dashboard = () => {
             <div>
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">RUL Estimate</p>
               <h3 className="text-2xl font-black text-gray-900 leading-tight">
-                {hasStream ? `${diagnosis.rul_estimate_hours ?? Math.max(12, Math.round(128 * ((healthScore || 90) / 100)))}` : '--'}
+                {hasStream ? `${diagnosis.rul_estimate_hours ?? Math.max(12, Math.round(140 * ((healthScore || 90) / 100)))}` : '--'}
                 <span className="text-xs font-normal text-gray-400 ml-1">Days</span>
               </h3>
             </div>
@@ -224,13 +256,21 @@ const Dashboard = () => {
         {/* Card 3: Failure Probability */}
         <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs hover:border-orange-200 hover:shadow-sm transition-all flex flex-col justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-orange-50 text-orange-500 border border-orange-100 shrink-0">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shrink-0 ${
+              isCritical
+                ? 'bg-red-50 border-red-200 text-red-600'
+                : isWarning
+                ? 'bg-amber-50 border-amber-200 text-amber-600'
+                : 'bg-orange-50 border-orange-100 text-orange-500'
+            }`}>
               <TrendingUp size={20} strokeWidth={2} />
             </div>
             <div>
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Failure Prob.</p>
-              <h3 className="text-2xl font-black text-gray-900 leading-tight">
-                {hasStream ? (isHealthy ? '3.2%' : `${Math.min(88, (100 - (healthScore || 80)) * 0.9).toFixed(1)}%`) : '--'}
+              <h3 className={`text-2xl font-black leading-tight ${
+                isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-gray-900'
+              }`}>
+                {hasStream ? `${Math.min(92, Math.max(1.8, ((100 - (healthScore || 90)) * 0.85 + 2.2))).toFixed(1)}%` : '--'}
               </h3>
             </div>
           </div>
@@ -248,7 +288,9 @@ const Dashboard = () => {
               <h3 className="text-2xl font-black text-gray-900 leading-tight">
                 {hasStream ? (
                   <>
-                    {healthScore}
+                    <span className={isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'}>
+                      {healthScore}
+                    </span>
                     <span className="text-xs font-normal text-gray-400 ml-0.5">/100</span>
                   </>
                 ) : (
@@ -258,7 +300,7 @@ const Dashboard = () => {
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-3 font-medium">
-            {hasStream ? (healthScore >= 85 ? 'Excellent Condition' : healthScore >= 70 ? 'Moderate Wear' : 'Action Required') : 'Standby Mode'}
+            {hasStream ? (healthScore >= 88 ? 'System Reliability: Optimal' : healthScore >= 72 ? 'System Reliability: Degraded' : 'Critical Action Required') : 'System Standby'}
           </p>
         </div>
 

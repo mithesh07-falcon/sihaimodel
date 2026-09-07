@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { useEngineStore } from './store/useEngineStore';
-import Sidebar   from './Components/layout/Sidebar';
-import AppRouter from './router';
+import Sidebar    from './Components/layout/Sidebar';
+import TopTaskBar from './Components/layout/TopTaskBar';
+import AppRouter  from './router';
 
 const Layout = () => {
   const connectWebSocket = useEngineStore(s => s.connectWebSocket);
@@ -25,6 +26,7 @@ const Layout = () => {
       </div>
       {/* Page content */}
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <TopTaskBar />
         <div className="flex-1 overflow-y-auto">
           <AppRouter />
         </div>
