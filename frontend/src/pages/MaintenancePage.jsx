@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { RotateCcw, Wrench, AlertTriangle, CheckCircle } from 'lucide-react';
+import { RotateCcw, Wrench, AlertTriangle, CheckCircle, Download, FileText, Check } from 'lucide-react';
 import { useEngineStore } from '../store/useEngineStore';
 
 const priorityConfig = {
@@ -11,19 +11,50 @@ const priorityConfig = {
 };
 
 const MaintenancePage = () => {
-  const navigate       = useNavigate();
-  const diagnosis      = useEngineStore(s => s.diagnosis);
-  const soh            = useEngineStore(s => s.soh);
+  const navigate        = useNavigate();
+  const diagnosis       = useEngineStore(s => s.diagnosis);
+  const soh             = useEngineStore(s => s.soh);
+  const telemetry       = useEngineStore(s => s.telemetry);
   const maintenanceRecs = useEngineStore(s => s.maintenanceRecs);
-  const activeFault    = useEngineStore(s => s.activeFault);
-  const resetFault     = useEngineStore(s => s.resetFault);
-  const tasks          = useEngineStore(s => s.tasks);
+  const activeFault     = useEngineStore(s => s.activeFault);
+  const resetFault      = useEngineStore(s => s.resetFault);
+  const tasks           = useEngineStore(s => s.tasks);
+
+  const [exported, setExported] = useState(false);
 
   const overall = soh?.overall ?? 87;
   const anomaly = soh?.anomalyScore ?? 13;
   const rul     = diagnosis?.rul_estimate_hours ?? 126;
   const topRec  = maintenanceRecs?.[0];
   const pc      = priorityConfig[topRec?.priority ?? 'LOW'];
+
+  const handleExportReport = () => {
+    const reportData = {
+      title: "Rotax 912 ULS Maintenance & AI Health Audit Report",
+      timestamp: new Date().toISOString(),
+      soh_overall_score: overall,
+      anomaly_score: anomaly,
+      rul_hours: rul,
+      status: diagnosis?.status || 'HEALTHY',
+      telemetry_snapshot: telemetry,
+      active_fault: activeFault || 'NONE',
+      recommendations: maintenanceRecs || [],
+      scheduled_tasks: tasks || []
+    };
+
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `AeroTwin_Maintenance_Report_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setExported(true);
+    setTimeout(() => setExported(false), 2500);
+  };
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
@@ -35,20 +66,28 @@ const MaintenancePage = () => {
           <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700">
             STEP 7 / 7 — FINAL REPORT
           </span>
-          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-600">
-            SIMULATED PROTOTYPE — NOT FOR OPERATIONAL USE
+          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700">
+            LIVE AI HEALTH PIPELINE
           </span>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={handleExportReport}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm transition-all"
+          >
+            {exported ? <Check size={12} className="text-green-600" /> : <Download size={12} />}
+            <span>{exported ? 'Report Downloaded!' : 'Export Report (JSON)'}</span>
+          </button>
+
           {activeFault && activeFault !== 'nominal' && (
             <button onClick={resetFault}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-green-50 border border-green-200 text-green-700">
-              <RotateCcw size={11} /> Reset Simulation
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-all">
+              <RotateCcw size={11} /> Reset Fault
             </button>
           )}
           <button onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-50 border border-gray-200 text-gray-600">
-            ← Return to Mission Control
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-all">
+            ← Live Data Gateway
           </button>
         </div>
       </div>

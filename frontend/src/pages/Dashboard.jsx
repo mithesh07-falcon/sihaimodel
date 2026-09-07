@@ -5,7 +5,7 @@ import {
   ShieldCheck, Hourglass, TrendingUp, Wrench, Bell,
   Activity, Thermometer, Droplets, Gauge, Disc,
   Calendar, Brain, AlertTriangle, Clock, ArrowRight,
-  Eye, CheckCircle2
+  Eye, CheckCircle2, Radio, Wifi, WifiOff
 } from 'lucide-react';
 import { useEngineStore } from '../store/useEngineStore';
 import EngineModel3D from '../Components/twin/EngineModel3D';
@@ -41,57 +41,104 @@ const MiniSparkline = ({ data, color = '#FF6B35' }) => {
   );
 };
 
+const TIME_RANGES = [
+  'Live Stream (Realtime)',
+  'Last 15 Minutes',
+  'Last 1 Hour',
+  'Last 24 Hours',
+  'Last 7 Days (Historic)'
+];
+
 const Dashboard = () => {
   const telemetry = useEngineStore((s) => s.telemetry);
   const diagnosis = useEngineStore((s) => s.diagnosis);
   const soh = useEngineStore((s) => s.soh);
   const alerts = useEngineStore((s) => s.alerts);
-  const engineRunning = useEngineStore((s) => s.engineRunning);
-  const startEngine = useEngineStore((s) => s.startEngine);
+  const streamConnected = useEngineStore((s) => s.streamConnected);
+  const packetsReceived = useEngineStore((s) => s.packetsReceived);
+  const ingestionRateHz = useEngineStore((s) => s.ingestionRateHz);
   const connectWebSocket = useEngineStore((s) => s.connectWebSocket);
 
-  const [dateRange, setDateRange] = useState('May 20 – May 27, 2025');
+  const [dateRange, setDateRange] = useState('Live Stream (Realtime)');
+  const [showRangeDropdown, setShowRangeDropdown] = useState(false);
   const [show3DToggle, setShow3DToggle] = useState(true);
 
   useEffect(() => {
     if (connectWebSocket) connectWebSocket();
-    if (startEngine) startEngine();
   }, []);
 
-  // Dynamic telemetry values or defaults matching the reference mockup
-  const egtValue = engineRunning ? Math.round(telemetry.egt ?? 650) : 650;
-  const n1Value = 88.7;
-  const n2Value = engineRunning ? (92.1 + (Math.random() * 0.4 - 0.2)).toFixed(1) : 92.1;
-  const oilPressurePsi = engineRunning
-    ? ((telemetry.oil_pressure ?? 380) * 0.145).toFixed(1)
-    : '72.4';
-  const vibrationValue = engineRunning ? (telemetry.vibration ?? 2.1).toFixed(1) : '2.1';
-  const fuelFlowPph = engineRunning
-    ? Math.round((telemetry.fuel_flow ?? 18.5) * 46)
+  // Live telemetry readings directly from incoming stream
+  const egtValue = telemetry.egt != null ? Math.round(telemetry.egt) : 815;
+  const oilPressurePsi = telemetry.oil_pressure != null
+    ? (telemetry.oil_pressure * 14.5038).toFixed(1)
+    : '55.4';
+  const vibrationValue = telemetry.vibration != null
+    ? telemetry.vibration.toFixed(2)
+    : (telemetry.vibration_rms != null ? telemetry.vibration_rms.toFixed(2) : '1.15');
+  const fuelFlowPph = telemetry.fuel_flow != null
+    ? Math.round(telemetry.fuel_flow * 46)
     : 850;
 
   const healthScore = soh?.overall ?? 92;
-  const isHealthy = diagnosis.status === 'Healthy';
+  const isHealthy = diagnosis.status === 'Healthy' || diagnosis.status === 'nominal' || !diagnosis.anomaly_detected;
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] p-6 lg:p-8 flex flex-col gap-6 max-w-[1780px] mx-auto select-none font-sans">
       {/* ── Top Header ── */}
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl lg:text-2xl font-black text-[#111827] tracking-tight uppercase">
-            ENGINE HEALTH MONITORING
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl lg:text-2xl font-black text-[#111827] tracking-tight uppercase">
+              ENGINE HEALTH MONITORING
+            </h1>
+            <Link
+              to="/"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${
+                streamConnected
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 animate-pulse'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${streamConnected ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`} />
+              {streamConnected ? `Stream Active (${ingestionRateHz.toFixed(1)} Hz)` : 'Awaiting Live Stream'}
+            </Link>
+          </div>
           <p className="text-xs lg:text-sm text-[#6B7280] font-medium mt-0.5">
-            Real-time analytics & predictive maintenance
+            Real-time analytics & predictive maintenance powered by 4 Deep Learning models
           </p>
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Date Picker Button */}
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-xl border border-gray-200 shadow-sm text-xs font-semibold text-gray-700 hover:border-gray-300 transition-colors cursor-pointer">
-            <Calendar size={15} className="text-gray-400" />
-            <span>{dateRange}</span>
-            <span className="text-[10px] text-gray-400">▼</span>
+          {/* Active Date / Stream Range Selector Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowRangeDropdown(!showRangeDropdown)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-xl border border-gray-200 shadow-sm text-xs font-semibold text-gray-700 hover:border-gray-300 transition-colors cursor-pointer"
+            >
+              <Calendar size={15} className="text-gray-400" />
+              <span>{dateRange}</span>
+              <span className="text-[10px] text-gray-400">▼</span>
+            </button>
+
+            {showRangeDropdown && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 text-xs">
+                {TIME_RANGES.map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => {
+                      setDateRange(range);
+                      setShowRangeDropdown(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-[#FF6B35] font-semibold transition-colors flex items-center justify-between ${
+                      dateRange === range ? 'text-[#FF6B35] bg-orange-50/50' : 'text-gray-700'
+                    }`}
+                  >
+                    <span>{range}</span>
+                    {dateRange === range && <CheckCircle2 size={13} className="text-[#FF6B35]" />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* AI Model Status Badge */}
@@ -105,7 +152,7 @@ const Dashboard = () => {
               </div>
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Optimal
+                4 DL Models Live
               </div>
             </div>
           </div>

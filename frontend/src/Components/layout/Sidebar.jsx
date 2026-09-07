@@ -1,11 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Gauge, Activity, Database, ClipboardList, Settings, Bell, User } from 'lucide-react';
+import { Radio, Home, Gauge, Activity, Database, ClipboardList, Settings, Bell, User } from 'lucide-react';
 import { useEngineStore } from '../../store/useEngineStore';
 
 const NAV = [
+  { to: '/',            icon: Radio,         label: 'Live Data Gateway' },
   { to: '/dashboard',   icon: Home,          label: 'Health Monitoring' },
-  { to: '/startup',     icon: Gauge,         label: 'Engine Startup'    },
   { to: '/sensors',     icon: Activity,      label: 'Sensor Overview'   },
   { to: '/twin',        icon: Database,      label: 'Digital Twin Model'},
   { to: '/faults',      icon: ClipboardList, label: 'Diagnostics & Faults' },
@@ -14,7 +14,7 @@ const NAV = [
 
 const Sidebar = () => {
   const alerts = useEngineStore(s => s.alerts);
-  const activeAlertsCount = alerts.filter(a => a.sev === 'critical' || a.sev === 'warning').length || 2;
+  const activeAlertsCount = alerts.filter(a => a.sev === 'critical' || a.sev === 'warning').length || 0;
 
   return (
     <nav
@@ -23,7 +23,7 @@ const Sidebar = () => {
     >
       {/* Top Logo Mark */}
       <div className="flex flex-col items-center gap-6 w-full">
-        <NavLink to="/dashboard" title="Engine Health Monitoring" className="group">
+        <NavLink to="/" title="AeroTwin Live Data Gateway" className="group">
           <div
             className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform duration-200 group-hover:scale-105 shadow-lg"
             style={{ background: 'linear-gradient(135deg, #FF6B35 0%, #EA580C 100%)' }}

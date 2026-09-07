@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import DataConnectionPage from './pages/DataConnectionPage';
 import EngineStartup    from './pages/EngineStartup';
 import Dashboard        from './pages/Dashboard';
 import SensorMonitoring from './pages/SensorMonitoring';
@@ -10,8 +11,9 @@ import MaintenancePage  from './pages/MaintenancePage';
 
 const AppRouter = () => (
   <Routes>
-    {/* First page is Engine Starting Phase as requested */}
-    <Route path="/"            element={<EngineStartup />}    />
+    {/* First page is Live Data Connection Hub as requested */}
+    <Route path="/"            element={<DataConnectionPage />} />
+    <Route path="/connection"  element={<DataConnectionPage />} />
     <Route path="/startup"     element={<EngineStartup />}    />
     <Route path="/engine"      element={<EngineStartup />}    />
     {/* Real-time Health Monitoring Dashboard */}

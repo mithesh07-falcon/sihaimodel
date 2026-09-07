@@ -191,6 +191,71 @@ export async function getDLModelsInfo() {
   return null;
 }
 
+export async function ingestTelemetry(telemetry) {
+  if (BACKEND_URL) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/telemetry/ingest`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(telemetry)
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.error('Ingest failed:', e);
+    }
+  }
+  return null;
+}
+
+export async function getStreamStatus() {
+  if (BACKEND_URL) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/stream/status`);
+      if (res.ok) return await res.json();
+    } catch { /* fall through */ }
+  }
+  return { is_connected: false, packets_received: 0, ingestion_rate_hz: 0 };
+}
+
+export async function testExternalConnection(url) {
+  if (BACKEND_URL) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/stream/test-connection`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  }
+  return { success: false, message: 'Backend unreachable' };
+}
+
+export async function configurePullStream(config) {
+  if (BACKEND_URL) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/stream/pull-config`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      return { status: 'error', message: e.message };
+    }
+  }
+  return null;
+}
+
+export async function resetStream() {
+  if (BACKEND_URL) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/telemetry/reset`, { method: 'POST' });
+      if (res.ok) return await res.json();
+    } catch { /* fall through */ }
+  }
+  return null;
+}
+
 export function getWsUrl() {
   if (BACKEND_URL) return BACKEND_URL.replace(/^http/, 'ws') + '/ws/telemetry';
   return 'ws://localhost:3000/ws/telemetry';

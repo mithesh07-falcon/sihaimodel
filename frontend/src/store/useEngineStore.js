@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import { diagnose, getWsUrl, localDiagnose, NOMINAL } from '../lib/api';
+import {
+  diagnose, getWsUrl, localDiagnose, NOMINAL,
+  ingestTelemetry, getStreamStatus, testExternalConnection,
+  configurePullStream, resetStream, BACKEND_URL
+} from '../lib/api';
 
 // ─── Fault Presets ─────────────────────────────────────────────────────────
 const PRESETS = {
@@ -203,49 +207,22 @@ const initThresholds = { ...DEFAULT_THRESHOLDS };
 
 export const useEngineStore = create((set, get) => {
   let ws = null;
-  let mockInterval = null;
   let streamPaused = false;
   let startupTimer = null;
 
-  function startMock() {
-    if (mockInterval) return;
-    mockInterval = setInterval(() => {
-      if (streamPaused) return;
-      const st = get();
-      if (!st.engineRunning) return;
-      const base = st.telemetry;
-      const nz = (v, p=0.015) => v*(1+(Math.random()-0.5)*2*p);
-      const next = {
-        rpm: nz(base.rpm), cht: nz(base.cht,0.01), egt: nz(base.egt,0.012),
-        oil_pressure: nz(base.oil_pressure,0.018), oil_temp: nz(base.oil_temp,0.01),
-        fuel_flow: nz(base.fuel_flow,0.02), map: nz(base.map,0.01),
-        vibration: nz(base.vibration,0.04), voltage: nz(base.voltage,0.005),
-        altitude: nz(base.altitude,0.003), ambient_temp: base.ambient_temp,
-        afr: nz(base.afr,0.015), engineLoad: base.engineLoad,
-      };
-      const d = localDiagnose(next);
-      const soh = computeSOH(next);
-      const physics = computePhysicsExpected(next);
-      const thr = get().thresholds;
-      set(s => ({
-        telemetry: next, diagnosis: d, soh, physicsExpected: physics,
-        maintenanceRecs: buildMaintenanceRecs(d, soh),
-        alerts: buildAlerts(next, d, thr),
-        tasks: s.tasks.length ? s.tasks : buildTasks(d),
-        history: [...s.history,{
-          time: new Date().toLocaleTimeString(),
-          rpm:next.rpm, cht:next.cht, egt:next.egt,
-          oil_pressure:next.oil_pressure, oil_temp:next.oil_temp,
-          vibration:next.vibration, fuel_flow:next.fuel_flow,
-          health_score:soh.overall, anomaly_score:soh.anomalyScore,
-        }].slice(-80)
-      }));
-    }, 1800);
-  }
-  function stopMock() { if (mockInterval) { clearInterval(mockInterval); mockInterval=null; } }
-
   return {
-    // Telemetry
+    // Live Stream Connection Status
+    streamConnected:   false,
+    packetsReceived:   0,
+    ingestionRateHz:   0,
+    lastPacketTime:    null,
+    sourceType:        'none', // 'push_webhook' | 'pull_rest' | 'none'
+    pullActive:        false,
+    pullUrl:           '',
+    streamLog:         [],
+    backendUrl:        BACKEND_URL,
+
+    // Telemetry (live real ingested data)
     telemetry:         initT,
     preset:            'nominal',
     diagnosis:         initD,
@@ -324,7 +301,6 @@ export const useEngineStore = create((set, get) => {
             telemetry: t, diagnosis: d, soh, physicsExpected: physics,
             history: seedHistory(t), maintenanceRecs: buildMaintenanceRecs(d, soh),
           });
-          startMock();
           if (onComplete) onComplete();
           return;
         }
@@ -344,7 +320,6 @@ export const useEngineStore = create((set, get) => {
 
     emergencyStop: () => {
       if (startupTimer) clearTimeout(startupTimer);
-      stopMock();
       const t = { ...PRESETS.nominal, engineLoad: 0 };
       set({
         uavPhase: 'standby', startupStep: -1,
@@ -356,8 +331,8 @@ export const useEngineStore = create((set, get) => {
       });
     },
 
-    startEngine: () => { startMock(); set({ engineRunning: true }); },
-    stopEngine:  () => { stopMock(); set({ engineRunning: false }); },
+    startEngine: () => { set({ engineRunning: true }); },
+    stopEngine:  () => { set({ engineRunning: false }); },
 
     increaseRpm: () => {
       set(s => {
@@ -456,28 +431,169 @@ export const useEngineStore = create((set, get) => {
     },
 
     connectWebSocket: () => {
-      const url=getWsUrl();
-      if (!url) { startMock(); return; }
+      const url = getWsUrl();
+      if (!url) return;
       if (ws) return;
-      const connect=()=>{
-        ws=new WebSocket(url);
-        ws.onopen=()=>{ set({wsConnected:true}); stopMock(); ws.send(JSON.stringify({preset:get().preset})); };
-        ws.onmessage=(e)=>{
-          if (streamPaused) return;
-          const data=JSON.parse(e.data);
-          if (data.telemetry) {
-            const next=data.telemetry; const d=localDiagnose(next); const soh=computeSOH(next);
-            const thr=get().thresholds; const na=buildAlerts(next,d,thr);
-            set(s=>({ telemetry:next, diagnosis:d, soh, physicsExpected:computePhysicsExpected(next),
-              alerts:na, unreadCount:na.filter(a=>!a.read).length,
-              history:[...s.history,{time:new Date().toLocaleTimeString(),...next,health_score:soh.overall,anomaly_score:soh.anomalyScore}].slice(-80) }));
-            diagnose(next).then(d2=>set({diagnosis:d2})).catch(()=>{});
-          }
-        };
-        ws.onclose=()=>{ set({wsConnected:false}); ws=null; startMock(); setTimeout(connect,5000); };
-        ws.onerror=()=>{ if(ws) ws.close(); };
+      const connect = () => {
+        try {
+          ws = new WebSocket(url);
+          ws.onopen = () => {
+            set({ wsConnected: true });
+          };
+          ws.onmessage = (e) => {
+            if (streamPaused) return;
+            try {
+              const data = JSON.parse(e.data);
+              if (data.type === 'heartbeat') {
+                set({
+                  streamConnected: !!data.stream_active,
+                  packetsReceived: data.packets_received ?? get().packetsReceived,
+                  ingestionRateHz: data.ingestion_rate_hz ?? 0,
+                  lastPacketTime: data.last_packet_time ?? get().lastPacketTime,
+                });
+                return;
+              }
+
+              if (data.telemetry) {
+                const next = data.telemetry;
+                const dl = data.dl_inference || null;
+                const d = dl ? {
+                  anomaly_detected: dl.anomaly_detection?.is_anomaly ?? false,
+                  anomaly_score: dl.anomaly_detection?.reconstruction_error ?? 0,
+                  predicted_fault: dl.fault_classification?.predicted_fault ?? 'normal',
+                  fault_confidence: dl.fault_classification?.confidence ?? 1.0,
+                  degradation_index: dl.degradation_prediction?.degradation_index ?? 0,
+                  predicted_rul_hours: dl.rul_prediction?.predicted_rul_hours ?? 1500,
+                  rul_health_pct: dl.rul_prediction?.health_pct ?? 100,
+                  dl_models: dl,
+                  timestamp: data.timestamp || new Date().toISOString()
+                } : localDiagnose(next);
+
+                const soh = computeSOH(next);
+                const thr = get().thresholds;
+                const na = buildAlerts(next, d, thr);
+                const logEntry = {
+                  time: new Date().toLocaleTimeString(),
+                  rpm: next.rpm,
+                  cht: next.cht,
+                  oil_pressure: next.oil_pressure,
+                  source: data.source || 'push_webhook',
+                  status: d.anomaly_detected ? 'ANOMALY' : 'HEALTHY'
+                };
+
+                set(s => ({
+                  streamConnected: true,
+                  packetsReceived: s.packetsReceived + 1,
+                  lastPacketTime: new Date().toISOString(),
+                  sourceType: data.source || s.sourceType,
+                  telemetry: next,
+                  dlInference: dl,
+                  diagnosis: d,
+                  soh,
+                  physicsExpected: computePhysicsExpected(next),
+                  alerts: na,
+                  unreadCount: na.filter(a => !a.read).length,
+                  streamLog: [logEntry, ...s.streamLog].slice(0, 50),
+                  history: [
+                    ...s.history,
+                    {
+                      time: new Date().toLocaleTimeString(),
+                      ...next,
+                      health_score: soh.overall,
+                      anomaly_score: d.anomaly_score ?? soh.anomalyScore
+                    }
+                  ].slice(-80)
+                }));
+              }
+            } catch (err) {
+              console.error("WS Parse error:", err);
+            }
+          };
+          ws.onclose = () => {
+            set({ wsConnected: false });
+            ws = null;
+            setTimeout(connect, 4000);
+          };
+          ws.onerror = () => {
+            if (ws) ws.close();
+          };
+        } catch (err) {
+          console.error("WS connect error:", err);
+          setTimeout(connect, 5000);
+        }
       };
       connect();
+    },
+
+    // ── Stream Ingestion Actions ─────────────────────────────────────────
+    refreshStreamStatus: async () => {
+      try {
+        const res = await getStreamStatus();
+        if (res && res.status === 'ok') {
+          set({
+            streamConnected: res.stream_active,
+            packetsReceived: res.packets_received,
+            ingestionRateHz: res.ingestion_rate_hz,
+            lastPacketTime: res.last_packet_time,
+            sourceType: res.source_type,
+            pullActive: res.pull_worker_active,
+            pullUrl: res.pull_url || ''
+          });
+        }
+        return res;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    sendSamplePacket: async (customData = null) => {
+      const sample = customData || {
+        rpm: 4850.0,
+        cht: 112.5,
+        egt: 815.0,
+        oil_pressure: 3.82,
+        oil_temperature: 93.1,
+        fuel_flow: 18.2,
+        vibration_rms: 1.15,
+        vibration_peak: 1.62,
+        vibration_1x: 0.81,
+        vibration_2x: 0.28,
+        battery_voltage: 14.2,
+        alternator_voltage: 14.1,
+        ambient_temperature: 18.0,
+        ambient_pressure: 1012.0,
+        throttle: 0.76,
+        engine_load: 0.72
+      };
+      try {
+        const res = await ingestTelemetry(sample);
+        get().refreshStreamStatus();
+        return res;
+      } catch (e) {
+        throw e;
+      }
+    },
+
+    testExternalUrl: async (url) => {
+      return await testExternalConnection(url);
+    },
+
+    setPullConfiguration: async (enabled, url, interval = 1.0) => {
+      const res = await configurePullStream(enabled, url, interval);
+      set({ pullActive: enabled, pullUrl: url });
+      get().refreshStreamStatus();
+      return res;
+    },
+
+    resetTelemetryStream: async () => {
+      await resetStream();
+      set({
+        streamConnected: false,
+        packetsReceived: 0,
+        ingestionRateHz: 0,
+        lastPacketTime: null,
+        streamLog: []
+      });
     },
   };
 });

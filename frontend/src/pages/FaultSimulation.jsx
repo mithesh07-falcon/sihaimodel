@@ -92,18 +92,6 @@ const FaultSimulation = () => {
         <div className="w-72 shrink-0 p-4 flex flex-col gap-4 overflow-y-auto bg-white border-r border-gray-100">
           <p className="text-[9px] font-black tracking-widest text-orange-500">SELECT FAULT SCENARIO</p>
 
-          {!engineRunning && (
-            <div className="rounded-xl p-3 bg-amber-50 border border-amber-200">
-              <p className="text-xs font-semibold mb-2 text-amber-700">
-                ⚠ Engine not running
-              </p>
-              <button onClick={armUav}
-                className="w-full py-2 rounded-lg text-xs font-bold bg-green-50 border border-green-200 text-green-700">
-                ▶ Start Engine First
-              </button>
-            </div>
-          )}
-
           <div className="space-y-2">
             {FAULTS.map(f => {
               const isActive = activeFault === f.key || (f.key === 'nominal' && !activeFault);
@@ -111,14 +99,12 @@ const FaultSimulation = () => {
                 <button
                   key={f.key}
                   onClick={() => f.key === 'nominal' ? resetFault() : injectFault(f.key)}
-                  disabled={!engineRunning && f.key !== 'nominal'}
-                  className="w-full text-left flex items-start gap-3 px-3 py-3 rounded-xl transition-all duration-200"
+                  className="w-full text-left flex items-start gap-3 px-3 py-3 rounded-xl transition-all duration-200 hover:scale-[1.01] cursor-pointer"
                   style={{
                     background: isActive ? `${f.color}10` : '#F9FAFB',
                     border: `1px solid ${isActive ? `${f.color}50` : '#E5E7EB'}`,
                     boxShadow: isActive ? `0 0 12px ${f.color}15` : 'none',
-                    opacity: (!engineRunning && f.key !== 'nominal') ? 0.4 : 1,
-                    cursor: (!engineRunning && f.key !== 'nominal') ? 'not-allowed' : 'pointer',
+                    opacity: 1,
                   }}
                 >
                   <span className="text-xl">{f.icon}</span>
