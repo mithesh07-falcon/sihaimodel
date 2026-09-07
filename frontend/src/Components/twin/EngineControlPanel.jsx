@@ -100,21 +100,13 @@ const EngineControlPanel = () => {
         <div className="grid grid-cols-2 gap-2 mt-1">
           <button
             onClick={increaseRpm}
-            disabled={!engineRunning}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border transition-all
-              ${engineRunning
-                ? 'bg-white hover:bg-orange-50 text-gray-700 border-gray-200 hover:border-orange-300'
-                : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border transition-all bg-white hover:bg-orange-50 text-gray-700 border-gray-200 hover:border-orange-300 cursor-pointer shadow-sm"
           >
             <ChevronUp size={13} className="text-orange-500" /> Increase RPM
           </button>
           <button
             onClick={decreaseRpm}
-            disabled={!engineRunning}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border transition-all
-              ${engineRunning
-                ? 'bg-white hover:bg-blue-50 text-gray-700 border-gray-200 hover:border-blue-300'
-                : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border transition-all bg-white hover:bg-blue-50 text-gray-700 border-gray-200 hover:border-blue-300 cursor-pointer shadow-sm"
           >
             <ChevronDown size={13} className="text-blue-500" /> Decrease RPM
           </button>
@@ -125,7 +117,7 @@ const EngineControlPanel = () => {
       <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-xs font-bold text-gray-700">Apply Engine Load</p>
-          <span className={`text-base font-black ${engineRunning ? 'text-gray-900' : 'text-gray-400'}`}>
+          <span className="text-base font-black text-gray-900">
             {load}%
           </span>
         </div>
@@ -134,13 +126,10 @@ const EngineControlPanel = () => {
             <button
               key={pct}
               onClick={() => applyLoad(pct)}
-              disabled={!engineRunning}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all
-                ${load === pct && engineRunning
+              className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer shadow-sm
+                ${load === pct
                   ? 'bg-orange-500 text-white border-orange-500'
-                  : engineRunning
-                    ? 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-600'
-                    : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-600'}`}
             >
               {pct}%
             </button>

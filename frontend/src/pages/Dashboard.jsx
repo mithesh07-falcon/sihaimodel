@@ -58,6 +58,7 @@ const Dashboard = () => {
   const packetsReceived = useEngineStore((s) => s.packetsReceived);
   const ingestionRateHz = useEngineStore((s) => s.ingestionRateHz);
   const connectWebSocket = useEngineStore((s) => s.connectWebSocket);
+  const refreshStreamStatus = useEngineStore((s) => s.refreshStreamStatus);
 
   const [dateRange, setDateRange] = useState('Live Stream (Realtime)');
   const [showRangeDropdown, setShowRangeDropdown] = useState(false);
@@ -65,6 +66,13 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (connectWebSocket) connectWebSocket();
+    if (refreshStreamStatus) {
+      refreshStreamStatus();
+      const interval = setInterval(() => {
+        refreshStreamStatus();
+      }, 1500);
+      return () => clearInterval(interval);
+    }
   }, []);
 
   // Live telemetry readings directly from incoming stream
@@ -92,7 +100,7 @@ const Dashboard = () => {
               ENGINE HEALTH MONITORING
             </h1>
             <Link
-              to="/"
+              to="/connection"
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${
                 streamConnected
                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
@@ -158,6 +166,35 @@ const Dashboard = () => {
           </div>
         </div>
       </header>
+
+      {/* ── Live Ingestion Status Banner ── */}
+      <div
+        className={`rounded-2xl p-3.5 px-5 border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all ${
+          streamConnected
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+            : 'bg-amber-50 border-amber-200 text-amber-950'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${streamConnected ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`} />
+          <div>
+            <span className="font-black text-xs uppercase tracking-wider">
+              {streamConnected ? 'LIVE STREAM INGESTION ACTIVE' : 'STANDBY: AWAITING TELEMETRY PACKETS'}
+            </span>
+            <span className="text-xs text-gray-600 ml-2 hidden md:inline font-medium">
+              {streamConnected
+                ? `Receiving from virtualengine.vercel.app · ${packetsReceived} frames · RPM: ${Math.round(telemetry.rpm || 0)} · CHT: ${(telemetry.cht || 0).toFixed(1)}°C · Oil: ${(telemetry.oil_pressure || 0).toFixed(1)} bar`
+                : 'Turn on Streaming in virtualengine.vercel.app or launch the Data Ingestion Gateway'}
+            </span>
+          </div>
+        </div>
+        <Link
+          to="/connection"
+          className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-gray-800 hover:text-orange-600 hover:border-orange-300 shadow-sm transition-all shrink-0"
+        >
+          Data Ingestion Gateway →
+        </Link>
+      </div>
 
       {/* ── Top Row: 5 Metric KPI Cards ── */}
       <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">

@@ -11,18 +11,18 @@ import MaintenancePage  from './pages/MaintenancePage';
 
 const AppRouter = () => (
   <Routes>
-    {/* First page is Live Data Connection Hub as requested */}
-    <Route path="/"            element={<DataConnectionPage />} />
+    {/* Real-time Health Monitoring Dashboard as main landing page */}
+    <Route path="/"            element={<Dashboard />} />
+    <Route path="/dashboard"   element={<Dashboard />} />
     <Route path="/connection"  element={<DataConnectionPage />} />
-    <Route path="/startup"     element={<EngineStartup />}    />
-    <Route path="/engine"      element={<EngineStartup />}    />
-    {/* Real-time Health Monitoring Dashboard */}
-    <Route path="/dashboard"   element={<Dashboard />}        />
+    <Route path="/gateway"     element={<DataConnectionPage />} />
     <Route path="/sensors"     element={<SensorMonitoring />} />
     <Route path="/twin"        element={<DigitalTwinPage />}  />
     <Route path="/health"      element={<AIHealthPage />}     />
     <Route path="/faults"      element={<FaultSimulation />}  />
     <Route path="/maintenance" element={<MaintenancePage />}  />
+    <Route path="/startup"     element={<EngineStartup />}    />
+    <Route path="/engine"      element={<EngineStartup />}    />
     <Route path="*"            element={<Navigate to="/" replace />} />
   </Routes>
 );

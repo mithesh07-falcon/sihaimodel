@@ -4,8 +4,8 @@ import { Radio, Home, Gauge, Activity, Database, ClipboardList, Settings, Bell, 
 import { useEngineStore } from '../../store/useEngineStore';
 
 const NAV = [
-  { to: '/',            icon: Radio,         label: 'Live Data Gateway' },
-  { to: '/dashboard',   icon: Home,          label: 'Health Monitoring' },
+  { to: '/',            icon: Home,          label: 'Health Monitoring Dashboard' },
+  { to: '/connection',  icon: Radio,         label: 'Live Data Ingestion Gateway' },
   { to: '/sensors',     icon: Activity,      label: 'Sensor Overview'   },
   { to: '/twin',        icon: Database,      label: 'Digital Twin Model'},
   { to: '/faults',      icon: ClipboardList, label: 'Diagnostics & Faults' },
