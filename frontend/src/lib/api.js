@@ -60,11 +60,39 @@ function computeFailureProb(reliability, confidence) {
   return Math.round(clamp(base * (0.3 + 0.7 * confidence) * 0.5, 0.1, 99.9) * 10) / 10;
 }
 
-function classifyFault(t) {
+export function normalizeTelemetry(t) {
+  if (!t) return null;
+  // Convert bar to kPa if under 25 (virtual engine sends bar ~3.82)
+  const oil_pressure = (t.oil_pressure > 0 && t.oil_pressure < 25) ? t.oil_pressure * 100 : (t.oil_pressure ?? 0);
+  return {
+    ...t,
+    oil_pressure,
+    rpm: t.rpm ?? 0,
+    cht: t.cht ?? 0,
+    egt: t.egt ?? 0,
+    oil_temp: t.oil_temperature ?? t.oil_temp ?? 0,
+    fuel_flow: t.fuel_flow ?? 0,
+    vibration: t.vibration ?? t.vibration_rms ?? 0,
+    engine_on: t.engine_on ?? (t.rpm > 100)
+  };
+}
+
+function classifyFault(rawT) {
+  const t = normalizeTelemetry(rawT);
+  if (!t || !t.engine_on || t.rpm < 100) {
+    return {
+      status: 'Standby',
+      fault_component: 'Awaiting Telemetry',
+      fault_type: 'Standby',
+      reasoning: ['Engine stream is in standby. Awaiting live data from virtualengine.vercel.app'],
+      recommended_action: 'Start simulation stream on virtualengine.vercel.app'
+    };
+  }
+
   const overheat  = t.cht > 128 || t.egt > 870;
   const oilFault  = t.oil_pressure < 260 || t.oil_temp > 112;
   const bearing   = t.vibration > 2.2;
-  const leanFire  = t.afr > 16.0 || t.fuel_flow < 13;
+  const leanFire  = (t.afr && t.afr > 16.0) || (t.fuel_flow > 0 && t.fuel_flow < 13);
 
   if (oilFault && t.oil_pressure < 220) return {
     status: 'Critical', fault_component: 'Oil Pump / Sump Assembly',
@@ -120,12 +148,27 @@ function classifyFault(t) {
   return {
     status: 'Healthy', fault_component: 'All Systems Nominal',
     fault_type: 'Healthy',
-    reasoning: [`All 12 engine telemetry parameters within nominal operating bands`, `Mission reliability index: OPTIMAL`],
+    reasoning: [`All engine telemetry parameters within nominal operating bands`, `Mission reliability index: OPTIMAL`],
     recommended_action: 'Continue current mission profile. No actions required.'
   };
 }
 
-export function localDiagnose(t) {
+export function localDiagnose(rawT) {
+  const t = normalizeTelemetry(rawT);
+  if (!t || !t.engine_on || t.rpm < 100) {
+    return {
+      status: 'Standby',
+      fault_component: 'Awaiting Telemetry',
+      fault_type: 'Standby',
+      confidence: 1.0,
+      mission_reliability_score: 0,
+      rul_estimate_hours: 0,
+      failure_probability_30d: 0,
+      maintenance_score: 0,
+      reasoning: ['Awaiting live telemetry from virtualengine.vercel.app'],
+      recommended_action: 'Start simulation stream on virtualengine.vercel.app'
+    };
+  }
   const fault       = classifyFault(t);
   const reliability = computeReliability(t);
   const confidence  = fault.status === 'Healthy' ? 0.97 : fault.status === 'Critical' ? 0.91 : 0.84;

@@ -34,7 +34,7 @@ const RAW_FIELDS = [
 const Telemetry = () => {
   const telemetry     = useEngineStore(s => s.telemetry);
   const history       = useEngineStore(s => s.history);
-  const wsConnected   = useEngineStore(s => s.wsConnected);
+  const streamConnected = useEngineStore(s => s.streamConnected);
   const streamPaused  = useEngineStore(s => s.streamPaused);
   const pauseStream   = useEngineStore(s => s.pauseStream);
   const resumeStream  = useEngineStore(s => s.resumeStream);
@@ -51,24 +51,24 @@ const Telemetry = () => {
       className="space-y-5"
     >
       {/* Status bar */}
-      <div className="card border border-gray-100 flex flex-wrap items-center justify-between gap-4">
+      <div className="card border-slate-700/50 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Activity size={18} className="text-orange-500" />
           <div>
-            <p className="text-sm font-bold text-gray-800">Live Telemetry Feed</p>
-            <p className="text-xs text-gray-400">WebSocket stream · ROTAX-MALE-009</p>
+            <p className="text-sm font-bold text-slate-100">Live Telemetry Feed</p>
+            <p className="text-xs text-slate-400">Stream Source: virtualengine.vercel.app</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold
-            ${wsConnected ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
-            {wsConnected ? <Wifi size={13}/> : <WifiOff size={13}/>}
-            {wsConnected ? 'Connected' : 'Simulated Mock'}
+            ${streamConnected ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400'}`}>
+            {streamConnected ? <Wifi size={13}/> : <WifiOff size={13}/>}
+            {streamConnected ? 'Live Virtual Stream Connected' : 'Standby / Disconnected'}
           </div>
           <button
             onClick={streamPaused ? resumeStream : pauseStream}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all
-              ${streamPaused ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'}`}
+              ${streamPaused ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
           >
             {streamPaused ? <><Play size={12}/> Resume</> : <><Pause size={12}/> Pause</>}
           </button>
@@ -76,14 +76,14 @@ const Telemetry = () => {
       </div>
 
       {/* Chart */}
-      <div className="card border border-gray-100">
+      <div className="card border-slate-700/50">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-gray-800">Multi-Parameter Chart</h3>
+          <h3 className="text-sm font-bold text-slate-100">Multi-Parameter Chart</h3>
           <div className="flex flex-wrap gap-1.5">
             {METRICS.map(m => (
               <button key={m.key} onClick={() => toggle(m.key)}
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all
-                  ${active.includes(m.key) ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-400 hover:text-gray-600'}`}
+                  ${active.includes(m.key) ? 'text-white border-transparent' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'}`}
                 style={active.includes(m.key) ? { background: m.color, borderColor: m.color } : {}}
               >
                 {m.label}
@@ -94,11 +94,11 @@ const Telemetry = () => {
         <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={history} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-              <XAxis dataKey="time" tick={{ fill:'#9CA3AF', fontSize:9 }} stroke="#F3F4F6" tickLine={false} interval="preserveStartEnd" />
-              <YAxis tick={{ fill:'#9CA3AF', fontSize:9 }} stroke="#F3F4F6" tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius:12, border:'1px solid #E5E7EB', fontSize:11 }} />
-              <Legend wrapperStyle={{ fontSize:10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="time" tick={{ fill:'#64748b', fontSize:9 }} stroke="#1e293b" tickLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fill:'#64748b', fontSize:9 }} stroke="#1e293b" tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius:12, backgroundColor: '#0f172a', border:'1px solid #334155', color: '#f8fafc', fontSize:11 }} />
+              <Legend wrapperStyle={{ fontSize:10, color: '#94a3b8' }} />
               {METRICS.filter(m => active.includes(m.key)).map(m => (
                 <Line key={m.key} type="monotone" dataKey={m.key} name={m.label}
                   stroke={m.color} strokeWidth={2} dot={false} isAnimationActive={false} />
@@ -109,17 +109,17 @@ const Telemetry = () => {
       </div>
 
       {/* Raw values table */}
-      <div className="card border border-gray-100">
-        <h3 className="text-sm font-bold text-gray-800 mb-4">Current Raw Values</h3>
+      <div className="card border-slate-700/50">
+        <h3 className="text-sm font-bold text-slate-100 mb-4">Current Raw Values</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {RAW_FIELDS.map(f => {
             const val = telemetry[f.key];
             return (
-              <div key={f.key} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+              <div key={f.key} className="bg-slate-800/40 rounded-xl p-3 border border-slate-700/50">
                 <p className="label-xs mb-1">{f.label}</p>
-                <p className="text-lg font-extrabold text-gray-900">
+                <p className="text-lg font-extrabold text-slate-100">
                   {typeof val === 'number' ? (val < 10 ? val.toFixed(2) : Math.round(val)) : '—'}
-                  <span className="text-xs font-normal text-gray-400 ml-1">{f.unit}</span>
+                  <span className="text-xs font-normal text-slate-500 ml-1">{f.unit}</span>
                 </p>
               </div>
             );

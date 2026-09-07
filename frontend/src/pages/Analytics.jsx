@@ -16,28 +16,56 @@ const FAULT_COLORS = {
 };
 
 function computeFaultFrequency(history, diagnosis) {
-  // Generate synthetic frequency data for the prototype
+  if (!history || history.length === 0) {
+    return [
+      { name: 'Healthy', value: 0 },
+      { name: 'Overheating', value: 0 },
+      { name: 'Oil Starvation', value: 0 },
+      { name: 'Bearing Wear', value: 0 },
+      { name: 'Fuel-Lean Misfire', value: 0 },
+    ];
+  }
+
+  let healthy = 0, overheat = 0, oilStarve = 0, bearingWear = 0, leanMisfire = 0;
+  history.forEach((h) => {
+    const cht = h.cht || 0;
+    const egt = h.egt || 0;
+    const op = (h.oil_pressure > 0 && h.oil_pressure < 25) ? h.oil_pressure * 100 : (h.oil_pressure || 380);
+    const vib = h.vibration ?? h.vibration_rms ?? 0;
+    const ff = h.fuel_flow || 0;
+    const afr = h.afr || 14.7;
+
+    let flagged = false;
+    if (cht > 128 || egt > 870) { overheat++; flagged = true; }
+    if (op < 260) { oilStarve++; flagged = true; }
+    if (vib > 2.0) { bearingWear++; flagged = true; }
+    if ((afr > 16.0) || (ff > 0 && ff < 13)) { leanMisfire++; flagged = true; }
+    if (!flagged) healthy++;
+  });
+
+  const total = history.length;
   return [
-    { name: 'Healthy',        value: 62 },
-    { name: 'Overheating',    value: 14 },
-    { name: 'Oil Starvation', value: 11 },
-    { name: 'Bearing Wear',   value: 8  },
-    { name: 'Fuel-Lean Misfire', value: 5 },
+    { name: 'Healthy', value: Math.round((healthy / total) * 100) },
+    { name: 'Overheating', value: Math.round((overheat / total) * 100) },
+    { name: 'Oil Starvation', value: Math.round((oilStarve / total) * 100) },
+    { name: 'Bearing Wear', value: Math.round((bearingWear / total) * 100) },
+    { name: 'Fuel-Lean Misfire', value: Math.round((leanMisfire / total) * 100) },
   ];
 }
 
 const Analytics = () => {
-  const history   = useEngineStore(s => s.history);
+  const history = useEngineStore(s => s.history);
   const diagnosis = useEngineStore(s => s.diagnosis);
+  const streamConnected = useEngineStore(s => s.streamConnected);
   const [range, setRange] = useState('24h');
 
   const faultFreq = computeFaultFrequency(history, diagnosis);
 
-  const healthTrend = history.map((h, i) => ({
+  const healthTrend = history.length > 0 ? history.map((h, i) => ({
     time: h.time,
     'Health Score': h.health_score ?? 95,
     'Baseline': 90,
-  }));
+  })) : [];
 
   const downloadCSV = () => {
     const headers = ['time', 'rpm', 'cht', 'egt', 'oil_pressure', 'oil_temp', 'vibration', 'fuel_flow', 'health_score'];
@@ -77,6 +105,26 @@ const Analytics = () => {
           ))}
         </div>
       </div>
+
+      {/* Standby Banner when Virtual Engine is inactive */}
+      {(!streamConnected || history.length === 0) && (
+        <div className="rounded-2xl p-4 border bg-amber-500/10 border-amber-500/30 text-amber-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <p className="text-xs font-bold">
+              SYSTEM STANDBY: Awaiting live simulation packets from virtualengine.vercel.app. Real-time statistical analytics will automatically plot once telemetry stream is active.
+            </p>
+          </div>
+          <a
+            href="https://virtualengine.vercel.app/"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[10px] font-black px-3 py-1.5 rounded-lg bg-amber-500 text-white uppercase tracking-wider shrink-0 hover:bg-amber-600 transition-colors inline-block text-center"
+          >
+            Open Virtual Engine →
+          </a>
+        </div>
+      )}
 
       {/* Health score trend */}
       <div className="card border border-gray-100">

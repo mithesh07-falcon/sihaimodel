@@ -56,13 +56,21 @@ function computePhysicsExpected(telemetry) {
 }
 
 // ─── SOH Scoring ───────────────────────────────────────────────────────────
-function computeSOH(t) {
+function computeSOH(rawT) {
+  if (!rawT || !rawT.engine_on || (rawT.rpm != null && rawT.rpm < 100)) {
+    return {
+      oilScore: 0, thermalScore: 0, vibScore: 0, rpmScore: 0, fuelScore: 0,
+      overall: 0, anomalyScore: 0, degradation: 0
+    };
+  }
+  const oil_pressure = (rawT.oil_pressure > 0 && rawT.oil_pressure < 25) ? rawT.oil_pressure * 100 : (rawT.oil_pressure || 380);
+  const t = { ...rawT, oil_pressure };
   const oilScore = Math.round(Math.max(0, Math.min(100,
-    ((t.oil_pressure/380)*0.6 + (1-Math.max(0,(t.oil_temp-92)/40))*0.4)*100)));
-  const thermalScore = Math.round(Math.max(0, 100 - Math.max(0,(t.cht-110)/30)*50 - Math.max(0,(t.egt-810)/100)*30));
-  const vibScore = Math.round(Math.max(0, 100 - Math.max(0,(t.vibration-1.1)/2.9)*100));
-  const rpmScore = Math.round(Math.max(0, 100 - Math.abs(t.rpm-4800)/1200*60));
-  const fuelScore = Math.round(Math.max(0, 100 - Math.abs(t.fuel_flow-18.5)/10*40 - Math.abs((t.afr??14.7)-14.7)/3*30));
+    ((t.oil_pressure/380)*0.6 + (1-Math.max(0,((t.oil_temp || 92)-92)/40))*0.4)*100)));
+  const thermalScore = Math.round(Math.max(0, 100 - Math.max(0,((t.cht || 110)-110)/30)*50 - Math.max(0,((t.egt || 810)-810)/100)*30));
+  const vibScore = Math.round(Math.max(0, 100 - Math.max(0,((t.vibration || 1.1)-1.1)/2.9)*100));
+  const rpmScore = Math.round(Math.max(0, 100 - Math.abs((t.rpm || 4800)-4800)/1200*60));
+  const fuelScore = Math.round(Math.max(0, 100 - Math.abs((t.fuel_flow || 18.5)-18.5)/10*40 - Math.abs(((t.afr??14.7)-14.7)/3*30)));
   const overall = Math.round(oilScore*0.30 + thermalScore*0.20 + vibScore*0.20 + rpmScore*0.15 + fuelScore*0.15);
   return {
     oilScore, thermalScore, vibScore, rpmScore, fuelScore,
@@ -73,6 +81,9 @@ function computeSOH(t) {
 
 // ─── Maintenance Recs ───────────────────────────────────────────────────────
 function buildMaintenanceRecs(diag, soh) {
+  if (!soh || soh.overall === 0 || !diag || diag.status === 'Standby') {
+    return [];
+  }
   const recs = [];
   if (soh.oilScore < 70) recs.push({
     id:'oil_rec', priority: soh.oilScore < 50 ? 'HIGH':'MEDIUM',
@@ -110,6 +121,7 @@ function buildMaintenanceRecs(diag, soh) {
 // ─── Alert Builder ──────────────────────────────────────────────────────────
 let alertIdCounter = 100;
 function buildAlerts(t, diag, thresholds) {
+  if (!t || !t.engine_on || t.rpm < 100) return [];
   const alerts = []; const ts = new Date().toLocaleTimeString();
   if (t.oil_pressure < thresholds.oil_pressure_crit)
     alerts.push({ id:`oil_p_${alertIdCounter++}`, sev:'critical', msg:'Oil pressure critically low', src:'Engine 1', ts, read:false });
@@ -129,6 +141,7 @@ function buildAlerts(t, diag, thresholds) {
 }
 
 function buildTasks(diag) {
+  if (!diag || diag.status === 'Standby') return [];
   const tasks = []; let id=1;
   if (diag.status === 'Critical') tasks.push({ id:id++, name:'Oil System Emergency Inspection', due:'Immediate', priority:'high', status:'open' });
   if (diag.status === 'Warning') tasks.push({ id:id++, name:`Inspect ${diag.fault_component}`, due:'Next flight', priority:'medium', status:'open' });
@@ -198,11 +211,32 @@ const FAULT_PROPAGATION = {
   ],
 };
 
-// ─── Init State ─────────────────────────────────────────────────────────────
-const initT = { ...PRESETS.nominal, engineLoad: 62 };
-const initD = localDiagnose(initT);
-const initSOH = computeSOH(initT);
-const initPhysics = computePhysicsExpected(initT);
+// ─── Init State (Standby — No Dummy Data) ───────────────────────────────────
+const standbyT = {
+  rpm: 0, cht: 0, egt: 0, oil_pressure: 0, oil_temp: 0,
+  fuel_flow: 0, map: 0, vibration: 0, voltage: 0, altitude: 0,
+  ambient_temp: 0, afr: 0, engineLoad: 0, flight_phase: 'STANDBY',
+  engine_on: false, status: 'STANDBY'
+};
+const standbyD = {
+  status: 'Standby',
+  anomaly_detected: false,
+  anomaly_score: 0,
+  fault_type: 'Standby',
+  fault_component: 'Awaiting Stream',
+  confidence: 1.0,
+  mission_reliability_score: 0,
+  rul_estimate_hours: 0,
+  failure_probability_30d: 0,
+  maintenance_score: 0,
+  reasoning: ['Awaiting live telemetry stream from virtualengine.vercel.app'],
+  recommended_action: 'Start simulation on virtualengine.vercel.app'
+};
+const standbySOH = {
+  overall: 0, oilScore: 0, thermalScore: 0, vibScore: 0, rpmScore: 0, fuelScore: 0,
+  anomalyScore: 0, degradation: 0
+};
+const standbyPhysics = computePhysicsExpected(standbyT);
 const initThresholds = { ...DEFAULT_THRESHOLDS };
 
 export const useEngineStore = create((set, get) => {
@@ -222,24 +256,24 @@ export const useEngineStore = create((set, get) => {
     streamLog:         [],
     backendUrl:        BACKEND_URL,
 
-    // Telemetry (live real ingested data)
-    telemetry:         initT,
-    preset:            'nominal',
-    diagnosis:         initD,
-    diagnosisLoading:     false,
-    soh:               initSOH,
-    physicsExpected:   initPhysics,
-    history:           seedHistory(initT),
-    alerts:            buildAlerts(initT, initD, initThresholds),
-    tasks:             buildTasks(initD),
+    // Telemetry (live real ingested data from virtual engine)
+    telemetry:         standbyT,
+    preset:            'standby',
+    diagnosis:         standbyD,
+    diagnosisLoading:  false,
+    soh:               standbySOH,
+    physicsExpected:   standbyPhysics,
+    history:           [],
+    alerts:            [],
+    tasks:             [],
     thresholds:        initThresholds,
-    maintenanceRecs:   buildMaintenanceRecs(initD, initSOH),
+    maintenanceRecs:   [],
     unreadCount:       0,
     wsConnected:       false,
     drawerOpen:        false,
     streamPaused:      false,
     selectedPart:      null,
-    engineRunning:     true,
+    engineRunning:     false,
 
     // UAV Phase
     uavPhase:          'standby', // standby | arming | running | fault
@@ -578,32 +612,47 @@ export const useEngineStore = create((set, get) => {
 
         // Fallback: Check Vercel serverless function /api/telemetry
         const vercelRes = await fetchVercelLiveTelemetry();
-        if (vercelRes && vercelRes.telemetry) {
+        if (vercelRes) {
+          const isLive = Boolean(vercelRes.stream_active);
           const next = vercelRes.telemetry;
-          const d = localDiagnose(next);
-          const soh = computeSOH(next);
-          const thr = get().thresholds;
-          const na = buildAlerts(next, d, thr);
-          set(s => ({
-            streamConnected: vercelRes.stream_active ?? false,
-            packetsReceived: vercelRes.packets_received || s.packetsReceived,
-            lastPacketTime: vercelRes.last_packet_time || new Date().toISOString(),
-            sourceType: 'virtualengine_vercel',
-            telemetry: { ...s.telemetry, ...next },
-            diagnosis: d,
-            soh,
-            physicsExpected: computePhysicsExpected(next),
-            alerts: na,
-            history: [
-              ...s.history,
-              {
-                time: new Date().toLocaleTimeString(),
-                ...next,
-                health_score: soh.overall,
-                anomaly_score: soh.anomalyScore
-              }
-            ].slice(-80)
-          }));
+          if (isLive && next) {
+            const d = localDiagnose(next);
+            const soh = computeSOH(next);
+            const thr = get().thresholds;
+            const na = buildAlerts(next, d, thr);
+            set(s => ({
+              streamConnected: true,
+              engineRunning: true,
+              ingestionRateHz: 1.0,
+              packetsReceived: vercelRes.packets_received || s.packetsReceived,
+              lastPacketTime: vercelRes.last_packet_time || new Date().toISOString(),
+              sourceType: 'virtualengine_vercel',
+              telemetry: { ...s.telemetry, ...next, engine_on: true },
+              diagnosis: d,
+              soh,
+              physicsExpected: computePhysicsExpected(next),
+              alerts: na,
+              maintenanceRecs: buildMaintenanceRecs(d, soh),
+              tasks: buildTasks(d),
+              history: [
+                ...s.history,
+                {
+                  time: new Date().toLocaleTimeString(),
+                  ...next,
+                  health_score: soh.overall,
+                  anomaly_score: soh.anomalyScore
+                }
+              ].slice(-80)
+            }));
+          } else {
+            // Stream is stopped or inactive from virtualengine
+            set({
+              streamConnected: false,
+              engineRunning: false,
+              ingestionRateHz: 0.0,
+              lastPacketTime: vercelRes.last_packet_time || null
+            });
+          }
           return vercelRes;
         }
         return null;

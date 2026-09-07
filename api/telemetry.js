@@ -1,20 +1,7 @@
 // Vercel Serverless Function: /api/telemetry
 // Receives live telemetry from virtualengine.vercel.app and serves it to sihaimodel.vercel.app
 
-let latestTelemetry = {
-  timestamp: new Date().toISOString(),
-  rpm: 4850.0,
-  cht: 112.5,
-  egt: 815.0,
-  oil_pressure: 3.82,
-  oil_temperature: 93.1,
-  fuel_flow: 18.2,
-  vibration: 1.15,
-  flight_phase: "CRUISE",
-  engine_on: true,
-  status: "nominal"
-};
-
+let latestTelemetry = null;
 let packetCount = 0;
 let lastPacketTime = null;
 
@@ -63,15 +50,25 @@ export default async function handler(req, res) {
     }
   }
 
+  if (req.method === 'DELETE' || (req.method === 'POST' && req.body && req.body.action === 'reset')) {
+    latestTelemetry = null;
+    packetCount = 0;
+    lastPacketTime = null;
+    return res.status(200).json({ status: "reset", stream_active: false });
+  }
+
   // GET: Return latest telemetry frame and stream status
   if (req.method === 'GET') {
-    const isLive = lastPacketTime && (Date.now() - new Date(lastPacketTime).getTime()) < 15000;
+    // Stream is ONLY active if a packet arrived within the last 3 seconds
+    const timeSinceLastMs = lastPacketTime ? (Date.now() - new Date(lastPacketTime).getTime()) : 999999;
+    const isLive = Boolean(lastPacketTime && timeSinceLastMs < 3000);
     return res.status(200).json({
-      status: "ok",
+      status: isLive ? "streaming" : "standby",
       stream_active: isLive,
       packets_received: packetCount,
+      seconds_since_last: lastPacketTime ? Math.round(timeSinceLastMs / 100) / 10 : null,
       last_packet_time: lastPacketTime,
-      telemetry: latestTelemetry
+      telemetry: isLive ? latestTelemetry : null
     });
   }
 
