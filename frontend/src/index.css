@@ -10,13 +10,13 @@
   --orange-dark:  #E55A25;
   --orange-light: #FFF5F0;
   --orange-mid:   #FFE8DC;
-  --sidebar-bg:   #0D0F14;
-  --page-bg:      #F8FAFC;
-  --card-bg:      #FFFFFF;
-  --border:       #E5E7EB;
-  --text-primary: #111827;
-  --text-secondary: #6B7280;
-  --text-muted:   #9CA3AF;
+  --sidebar-bg:   #020617;
+  --page-bg:      #0f172a;
+  --card-bg:      rgba(15, 23, 42, 0.6);
+  --border:       rgba(51, 65, 85, 0.5);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted:   #64748b;
 }
 
 @layer base {
@@ -33,32 +33,32 @@
 @layer components {
   /* ── Cards ── */
   .card {
-    @apply bg-white rounded-2xl p-5;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-    border: 1px solid #E5E7EB;
+    @apply bg-slate-900/60 backdrop-blur-md rounded-2xl p-5;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    border: 1px solid var(--border);
   }
   .card-sm { @apply card p-4; }
 
   /* ── Typography ── */
   .label-xs {
-    @apply text-[10px] font-semibold uppercase tracking-widest text-gray-400;
+    @apply text-[10px] font-semibold uppercase tracking-widest text-slate-400;
   }
   .page-title {
-    @apply text-xl font-black text-gray-900 tracking-tight;
+    @apply text-xl font-black text-slate-50 tracking-tight;
   }
   .section-title {
-    @apply text-xs font-black uppercase tracking-widest text-gray-500;
+    @apply text-xs font-black uppercase tracking-widest text-slate-500;
   }
 
   /* ── Status dots ── */
-  .dot-healthy  { @apply w-2 h-2 rounded-full bg-green-500; }
+  .dot-healthy  { @apply w-2 h-2 rounded-full bg-emerald-500; }
   .dot-warning  { @apply w-2 h-2 rounded-full bg-amber-500; }
-  .dot-critical { @apply w-2 h-2 rounded-full bg-red-500 animate-pulse; }
+  .dot-critical { @apply w-2 h-2 rounded-full bg-rose-500 animate-pulse; }
 
   /* ── Priority tags ── */
-  .tag-high   { @apply text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200; }
-  .tag-medium { @apply text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200; }
-  .tag-low    { @apply text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200; }
+  .tag-high   { @apply text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20; }
+  .tag-medium { @apply text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20; }
+  .tag-low    { @apply text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20; }
 
   /* ── Buttons ── */
   .btn-orange {
@@ -67,19 +67,19 @@
   }
   .btn-orange:hover { background: var(--orange-dark); }
   .btn-ghost {
-    @apply border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold px-4 py-2.5 rounded-xl transition-all duration-150 flex items-center gap-2 text-sm;
+    @apply border border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 text-slate-200 font-semibold px-4 py-2.5 rounded-xl transition-all duration-150 flex items-center gap-2 text-sm;
   }
   .btn-outline-orange {
     @apply font-semibold px-4 py-2 rounded-xl transition-all duration-150 flex items-center gap-2 text-sm border;
     color: var(--orange);
     border-color: var(--orange);
-    background: var(--orange-light);
+    background: rgba(255, 107, 53, 0.1);
   }
-  .btn-outline-orange:hover { background: var(--orange-mid); }
+  .btn-outline-orange:hover { background: rgba(255, 107, 53, 0.2); }
 
   /* ── Page header ── */
   .page-header {
-    @apply flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shrink-0;
+    @apply flex items-center justify-between px-6 py-3 bg-slate-900/50 backdrop-blur-md border-b border-slate-800 shrink-0;
   }
 
   /* ── Kpi value ── */
@@ -87,20 +87,20 @@
     @apply text-3xl font-black leading-none;
     color: var(--orange);
   }
-  .kpi-value-dark { @apply text-3xl font-black leading-none text-gray-900; }
+  .kpi-value-dark { @apply text-3xl font-black leading-none text-slate-50; }
 
   /* ── Orange accent badge ── */
   .badge-orange {
     @apply text-[9px] font-black px-2 py-1 rounded-lg;
-    background: var(--orange-light);
+    background: rgba(255, 107, 53, 0.1);
     color: var(--orange);
-    border: 1px solid var(--orange-mid);
+    border: 1px solid rgba(255, 107, 53, 0.3);
   }
   .badge-sim {
-    @apply text-[9px] font-bold px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700;
+    @apply text-[9px] font-bold px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500;
   }
   .badge-success {
-    @apply text-[9px] font-bold px-2 py-1 rounded-lg bg-green-50 border border-green-200 text-green-700;
+    @apply text-[9px] font-bold px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500;
   }
 }
 

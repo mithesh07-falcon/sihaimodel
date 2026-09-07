@@ -585,7 +585,7 @@ export const useEngineStore = create((set, get) => {
           const thr = get().thresholds;
           const na = buildAlerts(next, d, thr);
           set(s => ({
-            streamConnected: vercelRes.stream_active ?? true,
+            streamConnected: vercelRes.stream_active ?? false,
             packetsReceived: vercelRes.packets_received || s.packetsReceived,
             lastPacketTime: vercelRes.last_packet_time || new Date().toISOString(),
             sourceType: 'virtualengine_vercel',

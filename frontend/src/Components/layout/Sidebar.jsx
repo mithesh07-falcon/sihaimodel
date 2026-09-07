@@ -19,7 +19,7 @@ const Sidebar = () => {
   return (
     <nav
       className="flex flex-col items-center justify-between py-5 h-full w-[68px] shrink-0 select-none z-40"
-      style={{ background: '#0D0F14', borderRight: '1px solid #1A1D24' }}
+      style={{ background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)' }}
     >
       {/* Top Logo Mark */}
       <div className="flex flex-col items-center gap-6 w-full">
@@ -65,7 +65,7 @@ const Sidebar = () => {
                   {/* Sleek Tooltip */}
                   <span
                     className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 text-xs font-medium text-white shadow-xl"
-                    style={{ background: '#1E2430', border: '1px solid #334155' }}
+                    style={{ background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', border: '1px solid rgba(51, 65, 85, 0.5)' }}
                   >
                     {label}
                   </span>

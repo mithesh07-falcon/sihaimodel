@@ -54,6 +54,7 @@ const Dashboard = () => {
   const diagnosis = useEngineStore((s) => s.diagnosis);
   const soh = useEngineStore((s) => s.soh);
   const alerts = useEngineStore((s) => s.alerts);
+  const engineRunning = useEngineStore((s) => s.engineRunning);
   const streamConnected = useEngineStore((s) => s.streamConnected);
   const packetsReceived = useEngineStore((s) => s.packetsReceived);
   const ingestionRateHz = useEngineStore((s) => s.ingestionRateHz);
