@@ -18,14 +18,13 @@ const Sidebar = () => {
 
   return (
     <nav
-      className="flex flex-col items-center justify-between py-5 h-full w-[68px] shrink-0 select-none z-40"
-      style={{ background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)' }}
+      className="flex flex-col items-center justify-between py-5 h-full w-[68px] shrink-0 select-none z-40 bg-white border-r border-gray-200"
     >
       {/* Top Logo Mark */}
       <div className="flex flex-col items-center gap-6 w-full">
         <NavLink to="/" title="AeroTwin Live Data Gateway" className="group">
           <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform duration-200 group-hover:scale-105 shadow-lg"
+            className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform duration-200 group-hover:scale-105 shadow-md shadow-orange-500/20"
             style={{ background: 'linear-gradient(135deg, #FF6B35 0%, #EA580C 100%)' }}
           >
             {/* Turbine flower icon matching reference logo */}
@@ -52,20 +51,20 @@ const Sidebar = () => {
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200"
                   style={{
-                    background: isActive ? 'rgba(255,107,53,0.14)' : 'transparent',
+                    background: isActive ? 'rgba(255,107,53,0.12)' : 'transparent',
                     color: isActive ? '#FF6B35' : '#64748B',
                   }}
                 >
                   <Icon
                     size={20}
                     strokeWidth={isActive ? 2.4 : 1.8}
-                    className="transition-colors duration-200 group-hover:text-white"
+                    className="transition-colors duration-200 group-hover:text-[#FF6B35]"
                   />
 
                   {/* Sleek Tooltip */}
                   <span
                     className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 text-xs font-medium text-white shadow-xl"
-                    style={{ background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', border: '1px solid rgba(51, 65, 85, 0.5)' }}
+                    style={{ background: 'rgba(15, 23, 42, 0.92)', backdropFilter: 'blur(8px)', border: '1px solid rgba(51, 65, 85, 0.3)' }}
                   >
                     {label}
                   </span>
@@ -80,7 +79,7 @@ const Sidebar = () => {
       <div className="flex flex-col items-center gap-4 w-full">
         {/* Bell with Badge */}
         <div className="relative group cursor-pointer" title="Active Alerts">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors text-gray-400 group-hover:text-white">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors text-gray-500 hover:text-[#FF6B35] hover:bg-orange-50">
             <Bell size={20} strokeWidth={1.8} />
           </div>
           {activeAlertsCount > 0 && (
@@ -95,8 +94,7 @@ const Sidebar = () => {
 
         {/* Profile Avatar */}
         <div
-          className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-transform hover:scale-105 border border-gray-700/60"
-          style={{ background: '#1A202C', color: '#CBD5E1' }}
+          className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-transform hover:scale-105 border border-orange-200 bg-orange-50 text-orange-600"
           title="User Account"
         >
           <User size={18} strokeWidth={1.8} />

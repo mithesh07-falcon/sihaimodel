@@ -62,18 +62,21 @@ function computeFailureProb(reliability, confidence) {
 
 export function normalizeTelemetry(t) {
   if (!t) return null;
-  // Convert bar to kPa if under 25 (virtual engine sends bar ~3.82)
-  const oil_pressure = (t.oil_pressure > 0 && t.oil_pressure < 25) ? t.oil_pressure * 100 : (t.oil_pressure ?? 0);
+  const rawOilP = t.oil_pressure ?? 0;
+  const oil_pressure_bar = rawOilP > 25 ? rawOilP / 100 : rawOilP;
+  const oil_pressure = rawOilP > 25 ? rawOilP : rawOilP * 100;
   return {
     ...t,
     oil_pressure,
+    oil_pressure_bar: Number(oil_pressure_bar.toFixed(2)),
     rpm: t.rpm ?? 0,
     cht: t.cht ?? 0,
     egt: t.egt ?? 0,
     oil_temp: t.oil_temperature ?? t.oil_temp ?? 0,
     fuel_flow: t.fuel_flow ?? 0,
     vibration: t.vibration ?? t.vibration_rms ?? 0,
-    engine_on: t.engine_on ?? (t.rpm > 100)
+    engine_on: t.engine_on ?? (t.rpm > 100),
+    flight_phase: t.flight_phase || 'STANDBY'
   };
 }
 
@@ -259,6 +262,9 @@ export async function ingestTelemetry(telemetry) {
 }
 
 export async function getStreamStatus() {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return await fetchVercelLiveTelemetry();
+  }
   if (BACKEND_URL) {
     try {
       const res = await fetch(`${BACKEND_URL}/api/stream/status`);
@@ -267,7 +273,7 @@ export async function getStreamStatus() {
       console.error('API call failed during fallback:', e);
     }
   }
-  return { is_connected: false, packets_received: 0, ingestion_rate_hz: 0 };
+  return await fetchVercelLiveTelemetry();
 }
 
 export async function testExternalConnection(url) {
@@ -309,6 +315,14 @@ export async function resetStream() {
       console.error('API call failed during fallback:', e);
     }
   }
+  try {
+    const res = await fetch('/api/telemetry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reset' })
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {}
   return null;
 }
 
@@ -323,6 +337,9 @@ export async function fetchVercelLiveTelemetry() {
 }
 
 export function getWsUrl() {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return null; // On Vercel, live stream is handled via serverless /api/telemetry
+  }
   if (BACKEND_URL) return BACKEND_URL.replace(/^http/, 'ws') + '/ws/telemetry';
   return 'ws://localhost:3000/ws/telemetry';
 }

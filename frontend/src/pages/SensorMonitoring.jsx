@@ -41,9 +41,6 @@ const SensorMonitoring = () => {
   const uavPhase    = useEngineStore(s => s.uavPhase);
   const [activeStage, setActiveStage] = useState(0);
 
-  useEffect(() => {
-    if (uavPhase === 'standby') navigate('/');
-  }, [uavPhase, navigate]);
 
   // Animate pipeline stage highlight
   useEffect(() => {

@@ -247,6 +247,7 @@ export const useEngineStore = create((set, get) => {
   let ws = null;
   let streamPaused = false;
   let startupTimer = null;
+  let isPolling = false;
 
   return {
     // Live Stream Connection Status
@@ -599,27 +600,38 @@ export const useEngineStore = create((set, get) => {
 
     // ── Stream Ingestion Actions ─────────────────────────────────────────
     refreshStreamStatus: async () => {
+      if (isPolling) return null;
+      isPolling = true;
       try {
         const res = await getStreamStatus();
-        if (res && res.status === 'ok' && res.stream_active) {
-          const raw = res.last_telemetry || get().telemetry;
-          const normT = normalizeTelemetry(raw);
-          const d = res.last_diagnosis || localDiagnose(normT);
+        if (!res) return null;
+
+        const isLive = Boolean(res.stream_active);
+        const rawT = res.telemetry || res.last_telemetry;
+
+        if (isLive && rawT) {
+          const normT = normalizeTelemetry(rawT);
+          const isEngineActive = Boolean(normT.engine_on || normT.rpm > 100);
+          const d = localDiagnose(normT);
           const soh = computeSOH(normT);
+          const thr = get().thresholds;
+          const na = buildAlerts(normT, d, thr);
           const physics = computePhysicsExpected(normT);
+
           set(s => ({
             streamConnected: true,
-            engineRunning: true,
-            packetsReceived: res.packets_received,
+            engineRunning: isEngineActive,
             ingestionRateHz: res.ingestion_rate_hz || 1.0,
-            lastPacketTime: res.last_packet_time,
-            sourceType: res.source_type,
-            pullActive: res.pull_worker_active,
-            pullUrl: res.pull_url || '',
+            packetsReceived: res.packets_received || (s.packetsReceived + 1),
+            lastPacketTime: res.last_packet_time || new Date().toISOString(),
+            sourceType: res.source_type || 'virtualengine_vercel',
             telemetry: normT,
             diagnosis: d,
             soh,
             physicsExpected: physics,
+            alerts: na,
+            maintenanceRecs: buildMaintenanceRecs(d, soh),
+            tasks: buildTasks(d),
             history: [
               ...s.history,
               {
@@ -630,59 +642,25 @@ export const useEngineStore = create((set, get) => {
               }
             ].slice(-80)
           }));
-          return res;
-        }
-
-        // Fallback: Check Vercel serverless function /api/telemetry
-        const vercelRes = await fetchVercelLiveTelemetry();
-        if (vercelRes) {
-          const isLive = Boolean(vercelRes.stream_active);
-          const next = vercelRes.telemetry;
-          if (isLive && next) {
-            const normT = normalizeTelemetry(next);
-            const d = localDiagnose(normT);
-            const soh = computeSOH(normT);
-            const thr = get().thresholds;
-            const na = buildAlerts(normT, d, thr);
-            const physics = computePhysicsExpected(normT);
-            set(s => ({
-              streamConnected: true,
-              engineRunning: true,
-              ingestionRateHz: 1.0,
-              packetsReceived: vercelRes.packets_received || s.packetsReceived,
-              lastPacketTime: vercelRes.last_packet_time || new Date().toISOString(),
-              sourceType: 'virtualengine_vercel',
-              telemetry: normT,
-              diagnosis: d,
-              soh,
-              physicsExpected: physics,
-              alerts: na,
-              maintenanceRecs: buildMaintenanceRecs(d, soh),
-              tasks: buildTasks(d),
-              history: [
-                ...s.history,
-                {
-                  time: new Date().toLocaleTimeString(),
-                  ...normT,
-                  health_score: soh.overall,
-                  anomaly_score: soh.anomalyScore
-                }
-              ].slice(-80)
-            }));
-          } else {
-            // Stream is stopped or inactive from virtualengine
-            set({
+        } else {
+          // Stream is stopped or inactive from virtualengine
+          set(s => {
+            if (!s.streamConnected && !s.engineRunning && s.ingestionRateHz === 0) {
+              return s; // Already stable in standby, do not trigger re-render
+            }
+            return {
               streamConnected: false,
               engineRunning: false,
               ingestionRateHz: 0.0,
-              lastPacketTime: vercelRes.last_packet_time || null
-            });
-          }
-          return vercelRes;
+              lastPacketTime: res.last_packet_time || s.lastPacketTime
+            };
+          });
         }
-        return null;
+        return res;
       } catch (e) {
         return null;
+      } finally {
+        isPolling = false;
       }
     },
 

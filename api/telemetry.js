@@ -15,6 +15,10 @@ export default async function handler(req, res) {
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
 
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -59,16 +63,15 @@ export default async function handler(req, res) {
 
   // GET: Return latest telemetry frame and stream status
   if (req.method === 'GET') {
-    // Stream is ONLY active if a packet arrived within the last 3 seconds
     const timeSinceLastMs = lastPacketTime ? (Date.now() - new Date(lastPacketTime).getTime()) : 999999;
-    const isLive = Boolean(lastPacketTime && timeSinceLastMs < 3000);
+    const isLive = Boolean(lastPacketTime && timeSinceLastMs < 5500);
     return res.status(200).json({
       status: isLive ? "streaming" : "standby",
       stream_active: isLive,
       packets_received: packetCount,
       seconds_since_last: lastPacketTime ? Math.round(timeSinceLastMs / 100) / 10 : null,
       last_packet_time: lastPacketTime,
-      telemetry: isLive ? latestTelemetry : null
+      telemetry: latestTelemetry
     });
   }
 

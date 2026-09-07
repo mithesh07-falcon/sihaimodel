@@ -62,13 +62,8 @@ const DataConnectionPage = () => {
   const ingestEndpoint = `${backendUrl}/api/telemetry/ingest`;
 
   useEffect(() => {
-    connectWebSocket();
     refreshStreamStatus();
-    const interval = setInterval(() => {
-      refreshStreamStatus();
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [refreshStreamStatus]);
 
   const handleCopyEndpoint = () => {
     navigator.clipboard.writeText(ingestEndpoint);

@@ -45,17 +45,13 @@ const DigitalTwinPage = () => {
   const refreshStreamStatus = useEngineStore(s => s.refreshStreamStatus);
 
   useEffect(() => {
-    if (refreshStreamStatus) {
-      refreshStreamStatus();
-      const interval = setInterval(refreshStreamStatus, 1000);
-      return () => clearInterval(interval);
-    }
+    if (refreshStreamStatus) refreshStreamStatus();
   }, [refreshStreamStatus]);
 
-  const hasStream = streamConnected && telemetry && (telemetry.rpm > 100 || telemetry.engine_on);
+  const hasStream = streamConnected && Boolean(telemetry);
 
   const fmtVal = (v, d) => {
-    if (!hasStream && (v == null || v === 0)) return '—';
+    if (!hasStream || v == null) return '—';
     return (typeof v === 'number') ? (d === 0 ? Math.round(v).toLocaleString() : v.toFixed(d)) : '—';
   };
 
