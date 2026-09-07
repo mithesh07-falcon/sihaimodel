@@ -76,12 +76,15 @@ const AIHealthPage = () => {
   const diagnosis  = useEngineStore(s => s.diagnosis);
   const history    = useEngineStore(s => s.history);
   const maintenanceRecs = useEngineStore(s => s.maintenanceRecs);
+  const telemetry  = useEngineStore(s => s.telemetry);
 
-  const overall  = soh?.overall ?? 87;
-  const anomaly  = soh?.anomalyScore ?? 13;
-  const degrad   = soh?.degradation ?? 13;
-  const rul      = diagnosis?.rul_estimate_hours ?? 126;
-  const fp30     = diagnosis?.failure_probability_30d ?? 2.1;
+  const isStandby = !telemetry || telemetry.rpm < 100;
+  const overall  = soh?.overall ?? (isStandby ? 100 : 87);
+  const anomaly  = soh?.anomalyScore ?? (isStandby ? 0 : 13);
+  const degrad   = soh?.degradation ?? (isStandby ? 0 : 13);
+  const rul      = diagnosis?.rul_estimate_hours ?? (isStandby ? 0 : 126);
+  const fp30     = diagnosis?.failure_probability_30d ?? (isStandby ? 0 : 2.1);
+
 
   const anomalyData = history.slice(-30).map(h => ({ t: h.time, 'Anomaly': h.anomaly_score ?? 0, 'SOH': h.health_score ?? 90 }));
   const tt = { fill: '#9CA3AF', fontSize: 8 }; const ax = { stroke: '#F3F4F6' };

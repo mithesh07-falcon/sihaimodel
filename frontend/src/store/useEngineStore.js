@@ -67,8 +67,18 @@ function computeSOH(rawT) {
       overall: 0, anomalyScore: 0, degradation: 0
     };
   }
+
+  // If engine is off/standby, it is healthy by default (not degraded)
+  if (rawT.rpm < 100) {
+    return {
+      oilScore: 100, thermalScore: 100, vibScore: 100, rpmScore: 100, fuelScore: 100,
+      overall: 100, anomalyScore: 0, degradation: 0
+    };
+  }
+
   const oil_pressure = (rawT.oil_pressure > 0 && rawT.oil_pressure < 25) ? rawT.oil_pressure * 100 : (rawT.oil_pressure || 380);
   const t = { ...rawT, oil_pressure };
+
 
   // 1. Oil subsystem health (nominal 380 kPa / 3.8 bar, oil temp nominal 90-95°C)
   const op = t.oil_pressure || 380;
