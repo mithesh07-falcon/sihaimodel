@@ -6,7 +6,16 @@ import AppRouter from './router';
 
 const Layout = () => {
   const connectWebSocket = useEngineStore(s => s.connectWebSocket);
-  useEffect(() => { connectWebSocket(); }, [connectWebSocket]);
+  const refreshStreamStatus = useEngineStore(s => s.refreshStreamStatus);
+
+  useEffect(() => {
+    connectWebSocket();
+    if (refreshStreamStatus) {
+      refreshStreamStatus();
+      const interval = setInterval(refreshStreamStatus, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [connectWebSocket, refreshStreamStatus]);
 
   return (
     <div className="flex h-screen overflow-hidden font-sans" style={{ background: '#F8FAFC' }}>

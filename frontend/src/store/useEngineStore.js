@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  diagnose, getWsUrl, localDiagnose, NOMINAL,
+  diagnose, getWsUrl, localDiagnose, NOMINAL, normalizeTelemetry,
   ingestTelemetry, getStreamStatus, testExternalConnection,
   configurePullStream, resetStream, fetchVercelLiveTelemetry, BACKEND_URL
 } from '../lib/api';
@@ -41,17 +41,21 @@ export const STARTUP_STEPS = [
 
 // ─── Physics Model ──────────────────────────────────────────────────────────
 function computePhysicsExpected(telemetry) {
-  const rpm   = telemetry.rpm ?? 4800;
-  const load  = telemetry.engineLoad ?? 62;
+  const t = (telemetry && telemetry.oil_pressure != null && telemetry.oil_pressure < 25)
+    ? normalizeTelemetry(telemetry)
+    : (telemetry || {});
+  const rpm = t.rpm > 100 ? t.rpm : 4800;
+  let load = t.engineLoad ?? (t.engine_load != null ? (t.engine_load <= 1 ? t.engine_load * 100 : t.engine_load) : 62);
   const rpmF  = rpm / 4800;
   const loadF = load / 100;
   return {
-    rpm, cht: 88 + rpmF*35 + loadF*20,
-    egt: 680 + rpmF*130 + loadF*40,
-    oil_pressure: 420 - rpmF*40 - loadF*15 + 20,
-    oil_temp: 78 + rpmF*22 + loadF*14,
-    vibration: 0.6 + rpmF*0.55 + loadF*0.3,
-    fuel_flow: 10 + rpmF*9 + loadF*5,
+    rpm: Math.round(rpm),
+    cht: Math.round((88 + rpmF * 35 + loadF * 20) * 10) / 10,
+    egt: Math.round(680 + rpmF * 130 + loadF * 40),
+    oil_pressure: Math.round(420 - rpmF * 40 - loadF * 15 + 20),
+    oil_temp: Math.round((78 + rpmF * 22 + loadF * 14) * 10) / 10,
+    vibration: Math.round((0.6 + rpmF * 0.55 + loadF * 0.3) * 100) / 100,
+    fuel_flow: Math.round((10 + rpmF * 9 + loadF * 5) * 10) / 10,
   };
 }
 
@@ -597,16 +601,35 @@ export const useEngineStore = create((set, get) => {
     refreshStreamStatus: async () => {
       try {
         const res = await getStreamStatus();
-        if (res && res.status === 'ok') {
-          set({
-            streamConnected: res.stream_active,
+        if (res && res.status === 'ok' && res.stream_active) {
+          const raw = res.last_telemetry || get().telemetry;
+          const normT = normalizeTelemetry(raw);
+          const d = res.last_diagnosis || localDiagnose(normT);
+          const soh = computeSOH(normT);
+          const physics = computePhysicsExpected(normT);
+          set(s => ({
+            streamConnected: true,
+            engineRunning: true,
             packetsReceived: res.packets_received,
-            ingestionRateHz: res.ingestion_rate_hz,
+            ingestionRateHz: res.ingestion_rate_hz || 1.0,
             lastPacketTime: res.last_packet_time,
             sourceType: res.source_type,
             pullActive: res.pull_worker_active,
-            pullUrl: res.pull_url || ''
-          });
+            pullUrl: res.pull_url || '',
+            telemetry: normT,
+            diagnosis: d,
+            soh,
+            physicsExpected: physics,
+            history: [
+              ...s.history,
+              {
+                time: new Date().toLocaleTimeString(),
+                ...normT,
+                health_score: soh.overall,
+                anomaly_score: d.anomaly_score ?? soh.anomalyScore
+              }
+            ].slice(-80)
+          }));
           return res;
         }
 
@@ -616,10 +639,12 @@ export const useEngineStore = create((set, get) => {
           const isLive = Boolean(vercelRes.stream_active);
           const next = vercelRes.telemetry;
           if (isLive && next) {
-            const d = localDiagnose(next);
-            const soh = computeSOH(next);
+            const normT = normalizeTelemetry(next);
+            const d = localDiagnose(normT);
+            const soh = computeSOH(normT);
             const thr = get().thresholds;
-            const na = buildAlerts(next, d, thr);
+            const na = buildAlerts(normT, d, thr);
+            const physics = computePhysicsExpected(normT);
             set(s => ({
               streamConnected: true,
               engineRunning: true,
@@ -627,10 +652,10 @@ export const useEngineStore = create((set, get) => {
               packetsReceived: vercelRes.packets_received || s.packetsReceived,
               lastPacketTime: vercelRes.last_packet_time || new Date().toISOString(),
               sourceType: 'virtualengine_vercel',
-              telemetry: { ...s.telemetry, ...next, engine_on: true },
+              telemetry: normT,
               diagnosis: d,
               soh,
-              physicsExpected: computePhysicsExpected(next),
+              physicsExpected: physics,
               alerts: na,
               maintenanceRecs: buildMaintenanceRecs(d, soh),
               tasks: buildTasks(d),
@@ -638,7 +663,7 @@ export const useEngineStore = create((set, get) => {
                 ...s.history,
                 {
                   time: new Date().toLocaleTimeString(),
-                  ...next,
+                  ...normT,
                   health_score: soh.overall,
                   anomaly_score: soh.anomalyScore
                 }

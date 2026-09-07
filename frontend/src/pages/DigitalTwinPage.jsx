@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronRight, Cpu, Brain } from 'lucide-react';
@@ -14,8 +14,10 @@ const PARAMS = [
   { key:'fuel_flow',    label:'Fuel Flow',      unit:'L/h',   decimals:1 },
 ];
 
-const DeviationBadge = ({ actual, expected }) => {
-  if (!actual || !expected) return null;
+const DeviationBadge = ({ actual, expected, hasStream }) => {
+  if (!hasStream || actual == null || expected == null) {
+    return <span className="text-[9px] font-mono text-gray-400">--</span>;
+  }
   const diff = actual - expected;
   const pct  = expected !== 0 ? Math.abs(diff / expected) * 100 : 0;
   const crit = pct > 18; const warn = pct > 8;
@@ -37,15 +39,28 @@ const DigitalTwinPage = () => {
   const physicsExpected = useEngineStore(s => s.physicsExpected);
   const diagnosis      = useEngineStore(s => s.diagnosis);
   const soh            = useEngineStore(s => s.soh);
-  const uavPhase       = useEngineStore(s => s.uavPhase);
-  const engineRunning  = useEngineStore(s => s.engineRunning);
+  const streamConnected = useEngineStore(s => s.streamConnected);
+  const packetsReceived = useEngineStore(s => s.packetsReceived);
+  const ingestionRateHz = useEngineStore(s => s.ingestionRateHz);
+  const refreshStreamStatus = useEngineStore(s => s.refreshStreamStatus);
 
-  const [activeModel, setActiveModel] = useState('physics');
+  useEffect(() => {
+    if (refreshStreamStatus) {
+      refreshStreamStatus();
+      const interval = setInterval(refreshStreamStatus, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [refreshStreamStatus]);
 
-  const fmtVal = (v, d) => (typeof v === 'number') ? (d === 0 ? Math.round(v).toLocaleString() : v.toFixed(d)) : '—';
+  const hasStream = streamConnected && telemetry && (telemetry.rpm > 100 || telemetry.engine_on);
 
-  const st = diagnosis.status || 'Healthy';
-  const stColor = st === 'Healthy' ? '#22C55E' : st === 'Warning' ? '#F59E0B' : '#EF4444';
+  const fmtVal = (v, d) => {
+    if (!hasStream && (v == null || v === 0)) return '—';
+    return (typeof v === 'number') ? (d === 0 ? Math.round(v).toLocaleString() : v.toFixed(d)) : '—';
+  };
+
+  const st = hasStream ? (diagnosis.status || 'Healthy') : 'Standby';
+  const stColor = st === 'Healthy' ? '#22C55E' : st === 'Warning' ? '#F59E0B' : st === 'Standby' ? '#9CA3AF' : '#EF4444';
 
   return (
     <div className="h-screen flex flex-col bg-white" style={{ color: '#1F2937' }}>
@@ -56,11 +71,16 @@ const DigitalTwinPage = () => {
           <span className="text-[9px] px-2 py-0.5 rounded font-bold bg-purple-50 border border-purple-200 text-purple-700">
             Physics Model + AI/ML
           </span>
+          <span className={`text-[9px] px-2 py-0.5 rounded font-bold border ${
+            hasStream ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+          }`}>
+            {hasStream ? `LIVE INGESTION (${ingestionRateHz.toFixed(1)} Hz)` : 'AWAITING VIRTUAL STREAM'}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-[9px] text-gray-400">STEP 4 / 7</span>
           <button onClick={() => navigate('/health')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white cursor-pointer hover:opacity-90 transition-opacity"
             style={{ background: '#FF6B35', boxShadow: '0 2px 8px rgba(255,107,53,0.25)' }}>
             AI Health <ChevronRight size={12} />
           </button>
@@ -72,10 +92,18 @@ const DigitalTwinPage = () => {
         {/* Left — Actual State */}
         <div className="flex-1 flex flex-col border-r border-gray-100">
           <div className="px-5 py-3 shrink-0 border-b border-gray-100 bg-white">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ background: '#22C55E', boxShadow: '0 0 6px #22C55E' }} />
-              <span className="text-xs font-black tracking-wider text-green-600">ACTUAL ENGINE STATE</span>
-              <span className="text-[9px] ml-1 text-gray-400">Live telemetry from virtual sensors</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-2.5 h-2.5 rounded-full ${hasStream ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`}
+                />
+                <span className={`text-xs font-black tracking-wider ${hasStream ? 'text-green-600' : 'text-amber-600'}`}>
+                  {hasStream ? 'ACTUAL ENGINE STATE (LIVE)' : 'ACTUAL ENGINE STATE (STANDBY)'}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-gray-400">
+                {hasStream ? `Frames: ${packetsReceived}` : 'https://virtualengine.vercel.app/'}
+              </span>
             </div>
           </div>
 
@@ -84,12 +112,17 @@ const DigitalTwinPage = () => {
               {PARAMS.map(p => {
                 const a = telemetry[p.key];
                 return (
-                  <div key={p.key} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm">
-                    <span className="text-xs font-semibold w-24 shrink-0 text-gray-500">{p.label}</span>
+                  <div key={p.key} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:border-gray-300">
+                    <span className="text-xs font-semibold w-28 shrink-0 text-gray-500">{p.label}</span>
                     <span className="text-xl font-black tabular-nums text-gray-800">
                       {fmtVal(a, p.decimals)}
                       <span className="text-xs font-normal ml-1 text-gray-400">{p.unit}</span>
                     </span>
+                    {hasStream && (
+                      <span className="ml-auto text-[10px] font-mono text-emerald-600 font-bold">
+                        LIVE
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -98,9 +131,10 @@ const DigitalTwinPage = () => {
             {/* Data source */}
             <div className="mt-4 p-3 rounded-xl bg-white border border-gray-100">
               <p className="text-[9px] font-bold mb-1 text-gray-500">DATA SOURCE</p>
-              <p className="text-[10px] text-gray-400">
-                Sensor layer → Data processing → Digital Twin<br />
-                Update rate: ~1800ms | Filter: Moving average
+              <p className="text-[10px] text-gray-400 leading-relaxed">
+                Origin: <span className="font-mono text-gray-600">https://virtualengine.vercel.app/</span><br />
+                Status: <span className="font-bold text-gray-700">{hasStream ? 'Live Telemetry Ingestion Active' : 'Standby — Awaiting Data Packets'}</span><br />
+                Update Rate: <span className="font-mono">{hasStream ? `${ingestionRateHz.toFixed(1)} Hz` : '0.0 Hz'}</span>
               </p>
             </div>
           </div>
@@ -116,25 +150,25 @@ const DigitalTwinPage = () => {
             {PARAMS.map(p => {
               const a = telemetry[p.key];
               const e = physicsExpected?.[p.key];
-              const diff = (a != null && e != null) ? Math.abs(a - e) : null;
-              const pct  = (diff != null && e !== 0) ? (diff/Math.abs(e))*100 : 0;
-              const color = pct > 18 ? '#EF4444' : pct > 8 ? '#F59E0B' : '#22C55E';
+              const diff = (hasStream && a != null && e != null) ? Math.abs(a - e) : null;
+              const pct  = (diff != null && e !== 0) ? (diff / Math.abs(e)) * 100 : 0;
+              const color = !hasStream ? '#9CA3AF' : pct > 18 ? '#EF4444' : pct > 8 ? '#F59E0B' : '#22C55E';
               return (
                 <div key={p.key} className="flex flex-col gap-1 px-3 py-3 rounded-xl bg-white shadow-sm"
-                  style={{ border: `1px solid ${pct > 8 ? color+'30' : '#E5E7EB'}` }}>
+                  style={{ border: `1px solid ${pct > 8 && hasStream ? color+'30' : '#E5E7EB'}` }}>
                   <span className="text-[9px] font-bold text-gray-500">{p.label}</span>
                   <div className="h-1.5 rounded-full overflow-hidden bg-gray-100">
                     <motion.div className="h-full rounded-full"
-                      style={{ background: color, width: `${Math.min(100, pct * 4)}%` }}
-                      animate={{ width: `${Math.min(100, pct * 4)}%` }}
+                      style={{ background: color, width: `${hasStream ? Math.min(100, pct * 4) : 0}%` }}
+                      animate={{ width: `${hasStream ? Math.min(100, pct * 4) : 0}%` }}
                       transition={{ duration: 0.5 }} />
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] text-gray-400">
-                      Δ {diff != null ? diff.toFixed(1) : '—'} {p.unit}
+                      Δ {hasStream && diff != null ? diff.toFixed(1) : '—'} {p.unit}
                     </span>
                     <span className="text-[9px] font-bold" style={{ color }}>
-                      {pct.toFixed(1)}%
+                      {hasStream ? `${pct.toFixed(1)}%` : '—'}
                     </span>
                   </div>
                 </div>
@@ -168,14 +202,14 @@ const DigitalTwinPage = () => {
                 const e = physicsExpected?.[p.key];
                 const a = telemetry[p.key];
                 return (
-                  <div key={p.key} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm">
-                    <span className="text-xs font-semibold w-24 shrink-0 text-gray-500">{p.label}</span>
+                  <div key={p.key} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:border-gray-300">
+                    <span className="text-xs font-semibold w-28 shrink-0 text-gray-500">{p.label}</span>
                     <span className="text-xl font-black tabular-nums text-purple-600">
-                      {fmtVal(e, p.decimals)}
+                      {hasStream ? fmtVal(e, p.decimals) : '—'}
                       <span className="text-xs font-normal ml-1 text-gray-400">{p.unit}</span>
                     </span>
                     <div className="ml-auto">
-                      <DeviationBadge actual={a} expected={e} />
+                      <DeviationBadge actual={a} expected={e} hasStream={hasStream} />
                     </div>
                   </div>
                 );
