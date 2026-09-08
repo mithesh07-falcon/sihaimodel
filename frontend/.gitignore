@@ -23,6 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# New Rotax 912 3D Engine Twin - local verification only, do not commit
-src/Components/engine/
-src/Components/EngineModel3D_Rotax912.jsx
