@@ -9,7 +9,7 @@ import {
 } from '../twin/engineAnimation';
 
 // ─── Technical Constants & Rotax 912 iS Sport Specifications ───────────────
-export const ROTAX_SPECS = {
+const ROTAX_SPECS = {
   model: 'Rotax 912 iS Sport',
   type: '4-Cylinder, 4-Stroke Horizontally-Opposed Boxer',
   displacement: '1,352 cm³',
@@ -914,28 +914,35 @@ const Rotax912iSAssembly = ({ isCutaway, showPins, selectedSubsystem, onSelectSu
   const diagnosis = useEngineStore((s) => s.diagnosis);
 
   // Live telemetry parameters
-  const rawRpm = Math.round(telemetry?.rpm ?? 0);
-  const baseCht = telemetry?.cht != null ? Number(telemetry.cht) : 110.0;
-  const rawOp = telemetry?.oil_pressure ?? 380;
-  const oilPressure = (rawOp > 0 && rawOp < 25) ? rawOp * 100 : rawOp;
-  const oilTemp = telemetry?.oil_temp ?? 92;
-  const fuelFlow = telemetry?.fuel_flow ?? 18.5;
-  const vib = telemetry?.vibration ?? telemetry?.vibration_rms ?? 0.85;
-  const isRunning = Boolean(telemetry?.engine_on || rawRpm > 100);
+  const streamConnected = useEngineStore((s) => s.streamConnected);
+  const packetsReceived = useEngineStore((s) => s.packetsReceived);
+  const isStreamActive = Boolean(streamConnected && packetsReceived > 0);
+
+  // Live telemetry parameters (Zeroed/Rest when not receiving)
+  const rawRpm = isStreamActive ? Math.round(telemetry?.rpm ?? 0) : 0;
+  const baseCht = isStreamActive ? (telemetry?.cht != null ? Number(telemetry.cht) : 105.0) : 24.0; // Ambient resting temp
+  const rawOp = isStreamActive ? (telemetry?.oil_pressure ?? 380) : 0;
+  const oilPressure = isStreamActive ? ((rawOp > 0 && rawOp < 25) ? rawOp * 100 : rawOp) : 0;
+  const oilTemp = isStreamActive ? (telemetry?.oil_temp ?? 90) : 24.0;
+  const fuelFlow = isStreamActive ? (telemetry?.fuel_flow ?? 18.5) : 0;
+  const vib = isStreamActive ? (telemetry?.vibration ?? telemetry?.vibration_rms ?? 0.85) : 0;
+  const isRunning = Boolean(isStreamActive && (telemetry?.engine_on || rawRpm > 100));
 
   // Independent per-cylinder CHT calculation
-  // In fault modes (e.g. overheating or injector clog), cylinder 3 is programmed to suffer the highest thermal distress
-  const isOverheating = diagnosis?.fault_type === 'overheating' || diagnosis?.fault_type === 'high_cht';
-  const isMisfire = diagnosis?.fault_type === 'lean_misfire' || diagnosis?.fault_type === 'rpm_instability';
+  const isOverheating = isStreamActive && (diagnosis?.fault_type === 'overheating' || diagnosis?.fault_type === 'high_cht');
+  const isMisfire = isStreamActive && (diagnosis?.fault_type === 'lean_misfire' || diagnosis?.fault_type === 'rpm_instability');
 
   const cylCht = useMemo(() => {
+    if (!isStreamActive || !isRunning) {
+      return { cyl1: 24.0, cyl2: 24.0, cyl3: 24.0, cyl4: 24.0 };
+    }
     return {
       cyl1: Number((baseCht - 1.2).toFixed(1)),
       cyl2: Number((baseCht + 0.8).toFixed(1)),
       cyl3: Number((isOverheating ? baseCht + 18.5 : isMisfire ? baseCht + 8.2 : baseCht + 2.1).toFixed(1)),
       cyl4: Number((baseCht - 0.5).toFixed(1)),
     };
-  }, [baseCht, isOverheating, isMisfire]);
+  }, [baseCht, isStreamActive, isRunning, isOverheating, isMisfire]);
 
   // Animation Refs
   const groupRef = useRef();
@@ -958,51 +965,55 @@ const Rotax912iSAssembly = ({ isCutaway, showPins, selectedSubsystem, onSelectSu
     const t = state.clock.getElapsedTime();
     const s = animState.current;
 
-    // Smooth RPM scaling
+    // Smooth RPM scaling (Drops cleanly to 0 when resting)
     const targetSpeed = isRunning ? rpmToSpeed(rawRpm || 2400) : 0;
-    s.visualSpeed = easeRpm(s.visualSpeed, targetSpeed, delta * 3.5);
-    s.crankAngle += delta * s.visualSpeed;
+    s.visualSpeed = easeRpm(s.visualSpeed, targetSpeed, delta * 4.0);
+    
+    // Only advance crank angle if engine is moving
+    if (s.visualSpeed > 0.001) {
+      s.crankAngle += delta * s.visualSpeed;
+    }
 
     const ca = s.crankAngle;
+    const isAtRest = s.visualSpeed <= 0.005;
 
     // 1. Crankshaft rotation
-    if (crankRef.current) crankRef.current.rotation.z = ca;
+    if (crankRef.current) {
+      crankRef.current.rotation.z = isAtRest ? 0 : ca;
+    }
 
     // 2. Camshaft rotation (Half engine speed 1:2)
-    if (camRef.current) camRef.current.rotation.z = -ca * 0.5;
+    if (camRef.current) {
+      camRef.current.rotation.z = isAtRest ? 0 : -ca * 0.5;
+    }
 
     // 3. Propeller shaft rotation (Exactly Crankshaft RPM ÷ 2.43)
     if (propRef.current) {
-      propRef.current.rotation.z = ca / 2.43;
+      propRef.current.rotation.z = isAtRest ? 0 : (ca / 2.43);
     }
 
     // 4. Boxer piston mirrored phase reciprocation:
-    // Stroke = 61.0mm. In 3D units, stroke amplitude = 0.44
-    const stroke = 0.44;
-    // Cyl 1 (Left Front): extends outward (-x) as ca reaches TDC
-    if (pistonRefs[0].current) pistonRefs[0].current.position.x = -Math.sin(ca) * stroke;
-    // Cyl 2 (Right Front): extends outward (+x) simultaneously (mirrored boxer symmetry!)
-    if (pistonRefs[1].current) pistonRefs[1].current.position.x = Math.sin(ca) * stroke;
-    // Cyl 3 (Left Rear): 180° opposed
-    if (pistonRefs[2].current) pistonRefs[2].current.position.x = -Math.sin(ca + Math.PI) * stroke;
-    // Cyl 4 (Right Rear): 180° opposed
-    if (pistonRefs[3].current) pistonRefs[3].current.position.x = Math.sin(ca + Math.PI) * stroke;
+    const stroke = isAtRest ? 0 : 0.44;
+    if (pistonRefs[0].current) pistonRefs[0].current.position.x = isAtRest ? 0 : -Math.sin(ca) * stroke;
+    if (pistonRefs[1].current) pistonRefs[1].current.position.x = isAtRest ? 0 : Math.sin(ca) * stroke;
+    if (pistonRefs[2].current) pistonRefs[2].current.position.x = isAtRest ? 0 : -Math.sin(ca + Math.PI) * stroke;
+    if (pistonRefs[3].current) pistonRefs[3].current.position.x = isAtRest ? 0 : Math.sin(ca + Math.PI) * stroke;
 
     // Connecting rod oscillation
-    const rodAng = Math.cos(ca) * 0.19;
+    const rodAng = isAtRest ? 0 : Math.cos(ca) * 0.19;
     if (rodRefs[0].current) rodRefs[0].current.rotation.y = rodAng;
     if (rodRefs[1].current) rodRefs[1].current.rotation.y = -rodAng;
     if (rodRefs[2].current) rodRefs[2].current.rotation.y = -rodAng;
     if (rodRefs[3].current) rodRefs[3].current.rotation.y = rodAng;
 
-    // Rocker arm rocker oscillation (half engine speed)
-    const rockerAng = Math.sin(ca * 0.5) * 0.22;
+    // Rocker arm oscillation
+    const rockerAng = isAtRest ? 0 : Math.sin(ca * 0.5) * 0.22;
     rockerRefs.forEach((ref, i) => {
-      if (ref.current) ref.current.rotation.x = (i % 2 === 0 ? rockerAng : -rockerAng);
+      if (ref.current) ref.current.rotation.x = isAtRest ? 0 : (i % 2 === 0 ? rockerAng : -rockerAng);
     });
 
-    // Spark plug firing pulses (1-3-2-4 firing order)
-    if (isRunning) {
+    // Spark plug firing pulses
+    if (isRunning && !isAtRest) {
       const sparkPulse = (phase) => Math.max(0, Math.sin(ca * 0.5 + phase)) ** 8 * 2.2;
       const phases = [0, Math.PI * 0.5, Math.PI, Math.PI * 1.5];
       sparkRefs.forEach((ref, idx) => {
@@ -1012,8 +1023,8 @@ const Rotax912iSAssembly = ({ isCutaway, showPins, selectedSubsystem, onSelectSu
       sparkRefs.forEach((ref) => { if (ref.current) ref.current.intensity = 0; });
     }
 
-    // Engine micro-vibration shudder
-    if (groupRef.current && isRunning && vib > 0.1) {
+    // Engine micro-vibration shudder (0 at rest)
+    if (groupRef.current && isRunning && vib > 0.1 && !isAtRest) {
       const j = vibrationJitter(t, vib, 0.016);
       groupRef.current.position.set(j.x, -0.1 + j.y, j.z);
     } else if (groupRef.current) {
@@ -1161,10 +1172,12 @@ const Rotax912Twin = () => {
   const diagnosis = useEngineStore((s) => s.diagnosis);
   const streamConnected = useEngineStore((s) => s.streamConnected);
 
-  const rpm = Math.round(telemetry?.rpm ?? 0);
+  const packetsReceived = useEngineStore((s) => s.packetsReceived);
+  const isStreamActive = Boolean(streamConnected && packetsReceived > 0);
+  const rpm = isStreamActive ? Math.round(telemetry?.rpm ?? 0) : 0;
   const propRpm = Math.round(rpm / 2.43);
-  const cht = telemetry?.cht != null ? Number(telemetry.cht).toFixed(1) : '110.0';
-  const oilP = telemetry?.oil_pressure != null ? (telemetry.oil_pressure > 25 ? (telemetry.oil_pressure / 100).toFixed(1) : Number(telemetry.oil_pressure).toFixed(1)) : '3.8';
+  const cht = isStreamActive && telemetry?.cht != null ? Number(telemetry.cht).toFixed(1) : '--';
+  const oilP = isStreamActive && telemetry?.oil_pressure != null ? (telemetry.oil_pressure > 25 ? (telemetry.oil_pressure / 100).toFixed(1) : Number(telemetry.oil_pressure).toFixed(1)) : '--';
 
   // Subsystem descriptions for technical inspector
   const SUBSYSTEM_INFO = {
@@ -1254,15 +1267,15 @@ const Rotax912Twin = () => {
       {/* ── Top-Left: Rotax 912 iS Sport Identity & Live Telemetry HUD ── */}
       <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 pointer-events-none">
         <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-gray-200/90 shadow-xs">
-          <div className={`w-2.5 h-2.5 rounded-full ${streamConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          <div className={`w-2.5 h-2.5 rounded-full ${isStreamActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
           <span className="text-[11px] font-black tracking-wider text-gray-900 uppercase">
             ROTAX 912 iS SPORT · 1,352 cm³ BOXER
           </span>
           <span
             className="text-[9px] font-bold px-2 py-0.5 rounded-md text-white shadow-xs"
-            style={{ background: '#003087' }}
+            style={{ background: isStreamActive ? '#003087' : '#64748B' }}
           >
-            DRDO UAV DIGITAL TWIN
+            {isStreamActive ? 'SYNCHRONIZED' : 'ENGINE AT REST'}
           </span>
         </div>
 
@@ -1270,22 +1283,22 @@ const Rotax912Twin = () => {
         <div className="flex items-center gap-3 bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-gray-200/90 shadow-xs text-xs">
           <div className="flex items-center gap-1.5">
             <span className="text-gray-400 font-semibold text-[10px] uppercase">Engine:</span>
-            <span className="font-black text-gray-900 font-mono">{rpm.toLocaleString()} <span className="text-[9px] text-gray-400 font-normal">RPM</span></span>
+            <span className="font-black text-gray-900 font-mono">{isStreamActive ? `${rpm.toLocaleString()} RPM` : '0 RPM (Rest)'}</span>
           </div>
           <span className="text-gray-300">|</span>
           <div className="flex items-center gap-1.5">
             <span className="text-gray-400 font-semibold text-[10px] uppercase">Prop (÷2.43):</span>
-            <span className="font-black text-orange-600 font-mono">{propRpm.toLocaleString()} <span className="text-[9px] text-orange-400 font-normal">RPM</span></span>
+            <span className="font-black text-orange-600 font-mono">{isStreamActive ? `${propRpm.toLocaleString()} RPM` : '0 RPM'}</span>
           </div>
           <span className="text-gray-300">|</span>
           <div className="flex items-center gap-1.5">
             <span className="text-gray-400 font-semibold text-[10px] uppercase">CHT:</span>
-            <span className="font-black text-gray-900 font-mono">{cht}°C</span>
+            <span className="font-black text-gray-900 font-mono">{isStreamActive ? `${cht}°C` : 'Rest (24°C)'}</span>
           </div>
           <span className="text-gray-300">|</span>
           <div className="flex items-center gap-1.5">
             <span className="text-gray-400 font-semibold text-[10px] uppercase">Oil P:</span>
-            <span className="font-black text-emerald-700 font-mono">{oilP} bar</span>
+            <span className="font-black text-emerald-700 font-mono">{isStreamActive ? `${oilP} bar` : '0.0 bar'}</span>
           </div>
         </div>
       </div>

@@ -1,18 +1,20 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Radio, Home, Activity, Database, ClipboardList, Settings, Bell, User, Lock } from 'lucide-react';
+import { Radio, Home, Box, Activity, Database, ClipboardList, Settings, Bell, User, Lock } from 'lucide-react';
 import { useEngineStore } from '../../store/useEngineStore';
 
-// Navigation order rearranged:
-// 1. Live Data Ingestion Gateway (first to establish stream)
-// 2. Health Monitoring Dashboard (next to connection)
-// 3. Sensor Overview
-// 4. Digital Twin Model
-// 5. Diagnostics & Faults
-// 6. Maintenance & Config
+// Navigation order:
+// 1. Live Data Ingestion Gateway
+// 2. Health Monitoring Dashboard
+// 3. 3D Engine View (Rotax 912 Twin)
+// 4. Sensor Overview
+// 5. Digital Twin Model
+// 6. Diagnostics & Faults
+// 7. Maintenance & Config
 const NAV = [
   { to: '/connection',  icon: Radio,         label: 'Live Data Ingestion Gateway',  alwaysActive: true },
   { to: '/',            icon: Home,          label: 'Health Monitoring Dashboard',  alwaysActive: false },
+  { to: '/engine-view', icon: Box,           label: '3D Engine View (Rotax 912)',   alwaysActive: false },
   { to: '/sensors',     icon: Activity,      label: 'Sensor Overview',              alwaysActive: false },
   { to: '/twin',        icon: Database,      label: 'Digital Twin Model',           alwaysActive: false },
   { to: '/faults',      icon: ClipboardList, label: 'Diagnostics & Faults',         alwaysActive: false },

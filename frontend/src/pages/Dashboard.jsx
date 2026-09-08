@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity, ShieldCheck, Hourglass, TrendingUp, AlertTriangle,
-  Wrench, Bell, Thermometer, Gauge, Droplets, Clock, Eye, Radio
+  Wrench, Bell, Thermometer, Gauge, Droplets, Clock, Eye, Radio, Box, ArrowRight
 } from 'lucide-react';
 import { useEngineStore } from '../store/useEngineStore';
-import EngineModel3D from '../Components/EngineModel3D';
 
 // Subtle SVG Mini-Sparkline with Orange stroke
 const MiniSparkline = ({ data, color = '#FF6B35' }) => {
@@ -45,8 +44,6 @@ const Dashboard = () => {
   const ingestionRateHz = useEngineStore((s) => s.ingestionRateHz);
   const history = useEngineStore((s) => s.history);
   const refreshStreamStatus = useEngineStore((s) => s.refreshStreamStatus);
-
-  const [show3DToggle, setShow3DToggle] = useState(true);
 
   // Trigger one immediate status refresh on mount; central loop is handled globally in App.jsx
   useEffect(() => {
@@ -368,48 +365,48 @@ const Dashboard = () => {
           </Link>
         </div>
 
-        {/* Center Column: 3D UAV Engine Projection */}
+        {/* Center Column: Rotax 912 Aircraft Engine Profile & 3D Launcher */}
         <div className="lg:col-span-5 bg-white border border-gray-100 rounded-3xl p-5 shadow-xs relative flex flex-col justify-between items-center min-h-[480px]">
-          {/* Header Bar with Model Badge & Controls */}
+          {/* Header Bar with Model Badge & Dedicated Page Link */}
           <div className="w-full flex items-center justify-between z-20 mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1 rounded-full">
-                Rotax 912 ULS · 100 HP MALE UAV
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#003087] border border-blue-200 px-3 py-1 rounded-full">
+                ROTAX 912 iS SPORT · 100 HP MALE UAV
               </span>
               <span className="text-[10px] text-gray-400 font-mono hidden sm:inline">S/N: RX-912-B4-2026</span>
             </div>
-            <button
-              onClick={() => setShow3DToggle(!show3DToggle)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors shadow-2xs cursor-pointer"
-            >
-              <Eye size={13} />
-              <span>{show3DToggle ? 'Photo Cutaway' : 'Interactive 3D'}</span>
-            </button>
+
+            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${hasStream ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+              {hasStream ? `ACTIVE (${Math.round(telemetry.rpm || 0)} RPM)` : 'ENGINE AT REST'}
+            </span>
           </div>
 
-          {/* Engine 3D / Photo Viewport */}
-          <div className="relative w-full flex-1 flex items-center justify-center min-h-[380px]">
-            {show3DToggle ? (
-              <div className="w-full h-full min-h-[380px]">
-                <EngineModel3D />
-              </div>
-            ) : (
-              <div className="relative w-full h-full flex items-center justify-center p-4">
-                <img
-                  src="/rotax_912.png"
-                  alt="Rotax 912 ULS Aircraft Engine"
-                  className="max-h-[340px] w-auto object-contain select-none filter drop-shadow-md"
-                />
-              </div>
-            )}
+          {/* Engine Technical Photo / Schematic Viewport */}
+          <div className="relative w-full flex-1 flex flex-col items-center justify-center p-4">
+            <img
+              src="/rotax_912.png"
+              alt="Rotax 912 iS Aircraft Engine"
+              className="max-h-[290px] w-auto object-contain select-none filter drop-shadow-md hover:scale-102 transition-transform duration-300"
+            />
+
+            {/* Launch Dedicated 3D Digital Twin Button */}
+            <Link
+              to="/engine-view"
+              className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black text-white shadow-md hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 select-none"
+              style={{ background: '#003087', boxShadow: '0 4px 14px rgba(0,48,135,0.25)' }}
+            >
+              <Box size={16} />
+              <span>LAUNCH 3D ENGINE DIGITAL TWIN</span>
+              <ArrowRight size={14} />
+            </Link>
           </div>
 
           {/* Specs Summary Pill */}
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[10px] font-mono text-gray-500 bg-gray-50 px-5 py-1.5 rounded-full border border-gray-200 w-max mx-auto mt-2">
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-orange-500 rounded-full" /> Power: 73.5 kW (100 hp)</span>
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-orange-500 rounded-full" /> Torque: 128 Nm</span>
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-orange-500 rounded-full" /> Dry Weight: 56.6 kg</span>
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-orange-500 rounded-full" /> TBO: 2,000 hrs</span>
+            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-[#003087] rounded-full" /> Power: 73.5 kW (100 hp)</span>
+            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-[#003087] rounded-full" /> Boxer 4-Cylinder</span>
+            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-[#003087] rounded-full" /> PSRU: 2.43:1</span>
+            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-[#003087] rounded-full" /> Dry Weight: 63.6 kg</span>
           </div>
         </div>
 
