@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck, Cpu, TrendingUp, Clock, Radio, Activity, Zap, ExternalLink } from 'lucide-react';
 import { useEngineStore } from '../../store/useEngineStore';
+import DataSourceStatusBadge from '../datasource/DataSourceStatusBadge';
 
 const TopTaskBar = () => {
   const telemetry = useEngineStore((s) => s.telemetry);
@@ -20,8 +21,17 @@ const TopTaskBar = () => {
 
   return (
     <header className="bg-white border-b border-gray-200/80 px-6 py-2.5 flex items-center justify-between gap-4 shrink-0 shadow-2xs select-none font-sans z-30">
-      {/* Left: Engine & Mission Identity */}
+      {/* Left: DRDO Logo + Engine & Mission Identity */}
       <div className="flex items-center gap-3 shrink-0">
+        {/* DRDO emblem badge */}
+        <div
+          className="w-8 h-8 rounded-full overflow-hidden shrink-0 border-2 flex items-center justify-center bg-white shadow-xs"
+          style={{ borderColor: '#003087', boxShadow: '0 1px 6px rgba(0,48,135,0.18)' }}
+          title="Defence Research and Development Organisation"
+        >
+          <img src="/drdo_logo.png" alt="DRDO" className="w-full h-full p-0.5 object-contain block" draggable={false} />
+        </div>
+
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
           <span className="text-xs font-black tracking-tight text-gray-900 uppercase">
@@ -29,11 +39,11 @@ const TopTaskBar = () => {
           </span>
         </div>
         <span className="text-gray-300">|</span>
+
         {/* Stream Status & Latency */}
         <div className="flex items-center gap-2 text-xs">
-          <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] font-bold ${
-            streamConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-          }`}>
+          <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] font-bold ${streamConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+            }`}>
             <Radio size={11} className={streamConnected ? 'animate-pulse text-emerald-600' : 'text-amber-500'} />
             {streamConnected ? `STREAM LIVE (${ingestionRateHz.toFixed(1)} Hz · ${pingMs}ms)` : 'STREAM STANDBY'}
           </div>
@@ -46,6 +56,8 @@ const TopTaskBar = () => {
           >
             virtualengine.vercel.app <ExternalLink size={9} />
           </a>
+          {/* Localhost data source status badge */}
+          <DataSourceStatusBadge />
         </div>
       </div>
 
@@ -57,11 +69,10 @@ const TopTaskBar = () => {
 
         {/* Model 1: Autoencoder (Anomaly Detection) */}
         <div
-          className={`flex items-center gap-2 px-3 py-1 rounded-xl border text-xs transition-all shadow-2xs ${
-            isAnomaly
+          className={`flex items-center gap-2 px-3 py-1 rounded-xl border text-xs transition-all shadow-2xs ${isAnomaly
               ? 'bg-red-50 border-red-200 text-red-700'
               : 'bg-gray-50/80 border-gray-200 text-gray-700'
-          }`}
+            }`}
           title="Deep Autoencoder: Unsupervised Reconstruction Anomaly Detector"
         >
           <div className={`w-5 h-5 rounded-lg flex items-center justify-center ${isAnomaly ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
@@ -77,11 +88,10 @@ const TopTaskBar = () => {
 
         {/* Model 2: 1D-CNN (Fault Classification) */}
         <div
-          className={`flex items-center gap-2 px-3 py-1 rounded-xl border text-xs transition-all shadow-2xs ${
-            !isHealthy && streamConnected
+          className={`flex items-center gap-2 px-3 py-1 rounded-xl border text-xs transition-all shadow-2xs ${!isHealthy && streamConnected
               ? 'bg-amber-50 border-amber-200 text-amber-800'
               : 'bg-gray-50/80 border-gray-200 text-gray-700'
-          }`}
+            }`}
           title="1D Convolutional Neural Network: Real-Time Multiclass Fault Classifier"
         >
           <div className={`w-5 h-5 rounded-lg flex items-center justify-center ${!isHealthy && streamConnected ? 'bg-amber-100 text-amber-600' : 'bg-orange-100 text-orange-600'}`}>

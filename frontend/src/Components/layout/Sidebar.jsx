@@ -30,27 +30,33 @@ const Sidebar = () => {
     >
       {/* Top Logo Mark */}
       <div className="flex flex-col items-center gap-6 w-full">
-        <NavLink to="/connection" title="AeroTwin Ingestion Gateway" className="group">
+        <NavLink to="/connection" title="DRDO · AeroTwin UAV Engine Analytics" className="group flex flex-col items-center gap-1">
           <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform duration-200 group-hover:scale-105 shadow-md shadow-orange-500/20 relative"
-            style={{ background: 'linear-gradient(135deg, #FF6B35 0%, #EA580C 100%)' }}
+            className="w-11 h-11 rounded-full flex items-center justify-center transition-transform duration-200 group-hover:scale-105 relative overflow-hidden border-2"
+            style={{ borderColor: '#003087', background: '#FFFFFF', boxShadow: '0 2px 12px rgba(0,48,135,0.18)' }}
           >
-            {/* Turbine flower icon */}
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round">
-              <circle cx="12" cy="12" r="3.2" />
-              <path d="M12 2.5a4 4 0 0 1 4 4c0 2-2 3.5-4 5.5" />
-              <path d="M21.5 12a4 4 0 0 1-4 4c-2 0-3.5-2-5.5-4" />
-              <path d="M12 21.5a4 4 0 0 1-4-4c0-2 2-3.5 4-5.5" />
-              <path d="M2.5 12a4 4 0 0 1 4-4c2 0 3.5 2 5.5 4" />
-            </svg>
-            {/* Pulsing connection status dot on logo */}
+            <img
+              src="/drdo_logo.png"
+              alt="DRDO"
+              className="w-full h-full p-0.5 object-contain block"
+              draggable={false}
+            />
+            {/* Connection status dot */}
             <span
               className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
                 streamConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
               }`}
             />
           </div>
+          {/* DRDO label under logo */}
+          <span
+            className="text-[8px] font-black tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            style={{ color: '#003087', letterSpacing: '0.18em' }}
+          >
+            DRDO
+          </span>
         </NavLink>
+
 
         {/* Navigation items matching required order */}
         <div className="flex flex-col items-center gap-3 w-full px-3">

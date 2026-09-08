@@ -4,6 +4,10 @@ import {
   ingestTelemetry, getStreamStatus, testExternalConnection,
   configurePullStream, resetStream, fetchVercelLiveTelemetry, BACKEND_URL
 } from '../lib/api';
+import {
+  normalizeRecord, validateRecord, RingBuffer,
+  LocalRestPoller, LocalWebSocketClient, LocalSSEClient, processFile,
+} from '../lib/localDataSource';
 
 // ─── Fault Presets ─────────────────────────────────────────────────────────
 const PRESETS = {
@@ -751,6 +755,340 @@ export const useEngineStore = create((set, get) => {
         lastPacketTime: null,
         streamLog: []
       });
+    },
+
+    // ── Localhost Data Source Slice ────────────────────────────────────────
+    // Manages direct browser→localhost connections (File, REST, WS, SSE)
+    // All analytics reuse existing computeSOH / localDiagnose / buildAlerts.
+
+    localSource: {
+      type: null,          // 'file' | 'rest' | 'ws' | 'sse'
+      status: 'idle',      // 'idle' | 'connecting' | 'connected' | 'error' | 'disconnected' | 'reconnecting'
+      error: null,         // string | null
+      url: import.meta.env.VITE_LOCALHOST_API_URL || 'http://localhost:5555',
+      port: '5555',
+      endpoint: '/api/sensor-data',
+      wsEndpoint: '/ws',
+      sseEndpoint: '/events',
+      method: 'GET',
+      intervalMs: 1000,
+      recordsReceived: 0,
+      lastTimestamp: null,
+      latencyMs: null,
+      bufferSize: 500,
+      fileInfo: null,      // { name, size, recordCount }
+    },
+    localSourceBuffer: [], // bounded ring buffer (plain array — updated on each ingest)
+
+    // ── Internal clients (not serialized to Zustand — module-level refs) ─
+    // These live outside set() to avoid Zustand serialization issues.
+    // We attach them to the store object directly.
+    _localRestPoller: null,
+    _localWsClient: null,
+    _localSseClient: null,
+    _localRingBuffer: new RingBuffer(500),
+
+    // Ingest a single normalized record from any local source
+    ingestLocalRecord: (normRecord) => {
+      const { _localRingBuffer, thresholds, localSource } = get();
+
+      // Re-validate post-normalization
+      if (!normRecord || typeof normRecord !== 'object') return;
+
+      // Map normalized schema to the format localDiagnose/computeSOH expect
+      const telemetryForAnalytics = {
+        rpm:          normRecord.rpm ?? 0,
+        cht:          normRecord.cht ?? 0,
+        egt:          normRecord.egt ?? 0,
+        oil_pressure: normRecord.oil_pressure ?? 0,
+        oil_temp:     normRecord.oil_temp ?? 0,
+        fuel_flow:    normRecord.fuel_flow ?? 0,
+        vibration:    normRecord.vibration ?? normRecord.vibration_rms ?? 0,
+        vibration_rms: normRecord.vibration_rms ?? normRecord.vibration ?? 0,
+        map:          normRecord.map ?? 0,
+        engineLoad:   normRecord.engineLoad ?? 0,
+        battery_voltage: normRecord.battery_voltage ?? 14.2,
+        engine_on:    normRecord.engine_on ?? (normRecord.rpm > 100),
+        throttle:     normRecord.throttle ?? 0,
+        ambient_temp: normRecord.ambient_temp ?? 15,
+        altitude:     normRecord.altitude ?? 0,
+        afr:          normRecord.afr ?? 14.7,
+        flight_phase: 'CRUISE',
+      };
+
+      _localRingBuffer.push(normRecord);
+
+      const d = localDiagnose(telemetryForAnalytics);
+      const soh = computeSOH(telemetryForAnalytics);
+      const na = buildAlerts(telemetryForAnalytics, d, thresholds);
+      const physics = computePhysicsExpected(telemetryForAnalytics);
+
+      const historyEntry = {
+        time: new Date(normRecord.timestamp || Date.now()).toLocaleTimeString(),
+        ...telemetryForAnalytics,
+        health_score: soh.overall,
+        anomaly_score: d.anomaly_score ?? soh.anomalyScore,
+        _local: true,
+      };
+
+      set(s => ({
+        // Drive the existing analytics pipeline with local data
+        streamConnected: true,
+        telemetry: telemetryForAnalytics,
+        diagnosis: d,
+        soh,
+        physicsExpected: physics,
+        alerts: na,
+        unreadCount: na.filter(a => !a.read).length,
+        maintenanceRecs: buildMaintenanceRecs(d, soh),
+        tasks: buildTasks(d),
+        history: [...s.history, historyEntry].slice(-80),
+        engineRunning: telemetryForAnalytics.engine_on || false,
+        // Update local source metadata
+        localSource: {
+          ...s.localSource,
+          status: 'connected',
+          recordsReceived: s.localSource.recordsReceived + 1,
+          lastTimestamp: normRecord.timestamp || new Date().toISOString(),
+          error: null,
+        },
+        localSourceBuffer: _localRingBuffer.items.slice(),
+      }));
+    },
+
+    // Load many records at once (file upload bulk ingest)
+    loadFileData: (normalizedRecords, fileInfo = null) => {
+      const { _localRingBuffer, thresholds } = get();
+      if (!normalizedRecords || normalizedRecords.length === 0) return;
+
+      _localRingBuffer.pushMany(normalizedRecords);
+      const last = normalizedRecords[normalizedRecords.length - 1];
+
+      const telemetryForAnalytics = {
+        rpm:          last.rpm ?? 0,
+        cht:          last.cht ?? 0,
+        egt:          last.egt ?? 0,
+        oil_pressure: last.oil_pressure ?? 0,
+        oil_temp:     last.oil_temp ?? 0,
+        fuel_flow:    last.fuel_flow ?? 0,
+        vibration:    last.vibration ?? last.vibration_rms ?? 0,
+        vibration_rms: last.vibration_rms ?? last.vibration ?? 0,
+        map:          last.map ?? 0,
+        engineLoad:   last.engineLoad ?? 0,
+        battery_voltage: last.battery_voltage ?? 14.2,
+        engine_on:    last.engine_on ?? (last.rpm > 100),
+        throttle:     last.throttle ?? 0,
+        ambient_temp: last.ambient_temp ?? 15,
+        altitude:     last.altitude ?? 0,
+        afr:          last.afr ?? 14.7,
+        flight_phase: 'CRUISE',
+      };
+
+      const historyEntries = normalizedRecords.map(r => ({
+        time: new Date(r.timestamp || Date.now()).toLocaleTimeString(),
+        rpm: r.rpm ?? 0,
+        cht: r.cht ?? 0,
+        egt: r.egt ?? 0,
+        oil_pressure: r.oil_pressure ?? 0,
+        oil_temp: r.oil_temp ?? 0,
+        vibration: r.vibration ?? r.vibration_rms ?? 0,
+        fuel_flow: r.fuel_flow ?? 0,
+        health_score: computeSOH(r).overall,
+        anomaly_score: computeSOH(r).anomalyScore,
+        _local: true,
+      }));
+
+      const d = localDiagnose(telemetryForAnalytics);
+      const soh = computeSOH(telemetryForAnalytics);
+      const na = buildAlerts(telemetryForAnalytics, d, thresholds);
+      const physics = computePhysicsExpected(telemetryForAnalytics);
+
+      set(s => ({
+        streamConnected: true,
+        telemetry: telemetryForAnalytics,
+        diagnosis: d, soh, physicsExpected: physics,
+        alerts: na, unreadCount: na.filter(a => !a.read).length,
+        maintenanceRecs: buildMaintenanceRecs(d, soh),
+        tasks: buildTasks(d),
+        history: [...s.history, ...historyEntries].slice(-80),
+        engineRunning: telemetryForAnalytics.engine_on || false,
+        localSource: {
+          ...s.localSource,
+          type: 'file',
+          status: 'connected',
+          recordsReceived: s.localSource.recordsReceived + normalizedRecords.length,
+          lastTimestamp: last.timestamp || new Date().toISOString(),
+          error: null,
+          fileInfo: fileInfo,
+        },
+        localSourceBuffer: _localRingBuffer.items.slice(),
+      }));
+    },
+
+    setLocalSourceConfig: (config) => {
+      set(s => ({ localSource: { ...s.localSource, ...config } }));
+    },
+
+    setLocalSourceError: (error) => {
+      set(s => ({
+        localSource: { ...s.localSource, status: 'error', error: String(error?.message || error) }
+      }));
+    },
+
+    setLocalSourceStatus: (status) => {
+      set(s => ({ localSource: { ...s.localSource, status } }));
+    },
+
+    // Connect the appropriate client based on localSource.type
+    connectLocalSource: () => {
+      const store = get();
+      const { localSource, _localRingBuffer } = store;
+      const { type, url, method, intervalMs, wsEndpoint, sseEndpoint, endpoint, port } = localSource;
+
+      // Clean up any existing connections first
+      store.disconnectLocalSource();
+
+      // Update buffer size in case it changed
+      _localRingBuffer.maxSize = localSource.bufferSize || 500;
+
+      set(s => ({ localSource: { ...s.localSource, status: 'connecting', error: null } }));
+
+      if (type === 'rest') {
+        const restUrl = url || `http://localhost:${port}${endpoint}`;
+        const poller = new LocalRestPoller({
+          url: restUrl,
+          method: method || 'GET',
+          intervalMs: intervalMs || 1000,
+        });
+
+        poller.on('data', (records, meta) => {
+          set(s => ({ localSource: { ...s.localSource, latencyMs: meta?.latencyMs || null } }));
+          records.forEach(r => get().ingestLocalRecord(r));
+        });
+        poller.on('status', (status) => {
+          get().setLocalSourceStatus(status);
+        });
+        poller.on('error', (err) => {
+          get().setLocalSourceError(err);
+        });
+
+        poller.connect();
+        set({ _localRestPoller: poller });
+
+      } else if (type === 'ws') {
+        const wsUrl = url || `ws://localhost:${port}${wsEndpoint}`;
+        const wsClient = new LocalWebSocketClient({ url: wsUrl });
+
+        wsClient.on('data', (records) => {
+          records.forEach(r => get().ingestLocalRecord(r));
+        });
+        wsClient.on('status', (status) => {
+          get().setLocalSourceStatus(status);
+        });
+        wsClient.on('error', (err) => {
+          get().setLocalSourceError(err);
+        });
+
+        wsClient.connect();
+        set({ _localWsClient: wsClient });
+
+      } else if (type === 'sse') {
+        const sseUrl = url || `http://localhost:${port}${sseEndpoint}`;
+        const sseClient = new LocalSSEClient({ url: sseUrl });
+
+        sseClient.on('data', (records) => {
+          records.forEach(r => get().ingestLocalRecord(r));
+        });
+        sseClient.on('status', (status) => {
+          get().setLocalSourceStatus(status);
+        });
+        sseClient.on('error', (err) => {
+          get().setLocalSourceError(err);
+        });
+
+        sseClient.connect();
+        set({ _localSseClient: sseClient });
+      }
+    },
+
+    disconnectLocalSource: () => {
+      const { _localRestPoller, _localWsClient, _localSseClient } = get();
+
+      if (_localRestPoller) {
+        _localRestPoller.disconnect();
+        _localRestPoller.removeAllListeners();
+        set({ _localRestPoller: null });
+      }
+      if (_localWsClient) {
+        _localWsClient.disconnect();
+        _localWsClient.removeAllListeners();
+        set({ _localWsClient: null });
+      }
+      if (_localSseClient) {
+        _localSseClient.disconnect();
+        _localSseClient.removeAllListeners();
+        set({ _localSseClient: null });
+      }
+
+      set(s => ({
+        streamConnected: false,
+        localSource: { ...s.localSource, status: 'disconnected', latencyMs: null },
+      }));
+    },
+
+    clearLocalSourceData: () => {
+      const { _localRingBuffer } = get();
+      _localRingBuffer.clear();
+
+      const thr = get().thresholds;
+      set(s => ({
+        localSourceBuffer: [],
+        streamConnected: false,
+        history: [],
+        telemetry: standbyT,
+        diagnosis: standbyD,
+        soh: standbySOH,
+        alerts: [],
+        unreadCount: 0,
+        maintenanceRecs: [],
+        tasks: [],
+        engineRunning: false,
+        localSource: {
+          ...s.localSource,
+          recordsReceived: 0,
+          lastTimestamp: null,
+          latencyMs: null,
+          error: null,
+          status: s.localSource.status === 'connected' ? 'connected' : 'idle',
+          fileInfo: null,
+        },
+      }));
+    },
+
+    // Process a File object (called from UI drag-drop or file input)
+    processLocalFile: async (file) => {
+      set(s => ({
+        localSource: { ...s.localSource, type: 'file', status: 'connecting', error: null }
+      }));
+
+      const { records, errors, warnings } = await processFile(file, 'file');
+
+      if (errors.length > 0) {
+        set(s => ({
+          localSource: { ...s.localSource, status: 'error', error: errors.join('; ') }
+        }));
+        return { success: false, errors, warnings, count: 0 };
+      }
+
+      if (records.length === 0) {
+        set(s => ({
+          localSource: { ...s.localSource, status: 'error', error: 'File contained no valid records' }
+        }));
+        return { success: false, errors: ['No valid records'], warnings, count: 0 };
+      }
+
+      get().loadFileData(records, { name: file.name, size: file.size, recordCount: records.length });
+      return { success: true, errors: [], warnings, count: records.length };
     },
   };
 });

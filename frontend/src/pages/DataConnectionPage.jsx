@@ -4,9 +4,10 @@ import { motion } from 'framer-motion';
 import {
   Radio, Wifi, WifiOff, Send, Globe, RefreshCw, CheckCircle2,
   AlertTriangle, Copy, Check, ArrowRight, Play, Square,
-  Terminal, ShieldCheck, Cpu, Activity, Clock
+  Terminal, ShieldCheck, Cpu, Activity, Clock, Database
 } from 'lucide-react';
 import { useEngineStore } from '../store/useEngineStore';
+import LocalDataSourcePanel from '../Components/datasource/LocalDataSourcePanel';
 
 const SAMPLE_PAYLOAD = {
   rpm: 4850.0,
@@ -49,7 +50,7 @@ const DataConnectionPage = () => {
   const resetTelemetryStream = useEngineStore((s) => s.resetTelemetryStream);
 
   // Local component state
-  const [activeTab, setActiveTab] = useState('push'); // 'push' | 'pull' | 'inspector'
+  const [activeTab, setActiveTab] = useState('push'); // 'push' | 'pull' | 'inspector' | 'localhost'
   const [copied, setCopied] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState('js'); // 'js' | 'python' | 'curl'
   const [testUrlInput, setTestUrlInput] = useState(pullUrl || 'https://api.example.com/uav/telemetry');
@@ -346,6 +347,16 @@ curl -X POST "${ingestEndpoint}" \\
                 2. Pull from Remote REST URL
               </button>
               <button
+                onClick={() => setActiveTab('localhost')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'localhost'
+                    ? 'bg-orange-50 text-[#FF6B35] border border-orange-200'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                3. Local Data Source
+              </button>
+              <button
                 onClick={() => setActiveTab('schema')}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                   activeTab === 'schema'
@@ -353,7 +364,7 @@ curl -X POST "${ingestEndpoint}" \\
                     : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
-                3. JSON Schema Specification
+                4. JSON Schema Specification
               </button>
             </div>
           </div>
@@ -568,6 +579,11 @@ curl -X POST "${ingestEndpoint}" \\
                 </table>
               </div>
             </div>
+          )}
+
+          {/* TAB 4: LOCALHOST DIRECT */}
+          {activeTab === 'localhost' && (
+            <LocalDataSourcePanel />
           )}
         </div>
 
